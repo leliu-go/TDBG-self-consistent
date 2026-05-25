@@ -1,0 +1,1199 @@
+
+
+===== PAGE 1 =====
+1 
+ 
+hBN alignment orienta�on controls moiré strength in rhombohedral graphene 
+ 
+ 
+Matan Uzan1 †, Weifeng Zhi1†, Matan Bocarsly1†, Junkai Dong2, Surajit Duta1, Nadav Auerbach1, 
+Niladri Sekhar Kander1, Mikhail Labendik1, Yuri Myasoedov1, Mar�n E. Huber3, Kenji Watanabe4,  
+Takashi Taniguchi5, Daniel E. Parker6#, and Eli Zeldov1* 
+ 
+ 
+Rhombohedral mul�layer graphene hosts a rich landscape of correlated symmetry-broken phases, 
+driven by strong interac�ons from its ﬂat band edges. Aligning to hexagonal boron nitride (hBN) creates 
+a moiré patern, leading to recent observa�ons of exo�c ground states such as integer and frac�onal 
+quantum anomalous Hall eﬀects. Here, we show that the moiré eﬀects and resul�ng correlated phase 
+diagrams are cri�cally inﬂuenced by a previously underes�mated structural choice: the hBN alignment 
+orienta�on. This binary parameter dis�nguishes between conﬁgura�ons where the rhombohedral 
+graphene and hBN la�ces are aligned near 0° or 180°, a dis�nc�on that arises only because both 
+materials break inversion symmetry . Although the two orienta�ons produce the same moiré 
+wavelength, we ﬁnd their dis�nct local stacking conﬁgura�ons result in markedly diﬀerent moiré 
+poten�al strengths. Using low-temperature transport and scanning SQUID-on-�p magnetometry, we 
+compare nearly iden�cal devices that diﬀer only in alignment orienta�on and observe sharply 
+contras�ng sequences of symmetry -broken states. Theore�cal analysis reveals a simple mechanism  
+based on la�ce relaxa�on and the atomic-scale electronic structure  of rhombohedral graphene , 
+supported by detailed modeling. These ﬁndings establish hBN alignment orienta�on as a key control 
+parameter in moiré-engineered graphene systems and provide a framework for interpre�ng both prior 
+and future experiments. 
+ 
+ 
+ 
+ 
+ 
+ ______________________________ 
+1Department of Condensed Mater Physics, Weizmann Ins�tute of Science, Rehovot 7610001, Israel 
+2Department of Physics, Harvard University, Cambridge, MA 02138, USA 
+3Departments of Physics and Electrical Engineering, University of Colorado Denver; Denver, Colorado 
+80217, USA 
+4Research Center for Electronic and Op�cal Materials, Na�onal Ins�tute for Materials Science; 1-1 
+Namiki, Tsukuba 305-0044, Japan 
+5Research Center for Materials Nanoarchitectonics, Na�onal Ins�tute for Materials Science; 1-1 
+Namiki, Tsukuba 305-0044, Japan 
+6Department of Physics, University of California at San Diego, La Jolla, California 92093, USA 
+†These authors contributed equally to this work 
+#danielericparker@ucsd.edu 
+*eli.zeldov@weizmann.ac.il  
+  
+
+===== PAGE 2 =====
+2 
+ 
+Van der Waals heterostructures combining graphene and hexagonal boron nitride (hBN) have emerged 
+as a powerful pla�orm to engineer  strongly correlated and topological phases. Among these, 
+rhombohedral-stacked mul�layer graphene (RMG) stands out due to its ﬂat, low-energy bands, which 
+place the system in an interac�on-dominated regime where strongly correlated phases appear [1,2]. 
+As carrier density is tuned, RMG exhibits a robust sequence of metallic states with decreasing 
+degeneracy: from a fourfold-degenerate metal at high density, to a spin-polarized twofold metal, and 
+eventually to a fully spin- and valley-polarized onefold metal near charge neutrality [3,4]. Although the 
+precise phase boundaries depend on external parameters such as displacement ﬁeld and number of 
+layers, this symmetry -breaking hierarchy appears remarkably robust across a broad range of RMG 
+devices [3–7]. When RMG is aligned to hBN, the resul�ng moiré superla�ce [8–15] introduces periodic 
+modula�on and addi�onal symmetry breaking, leading to band reconstruc�on. Recent experiments 
+have observed moiré minibands with exo�c topological states, such as integer and frac�onal quantum 
+anomalous Hall insulators [16–21], whose origin is under intense theore�cal debate [22–27]. 
+The moiré between hBN and RMG is typically characterized experimentally by its moiré wavelength—
+but this does not uniquely specify the moiré patern. This is because both hBN and RMG break in-plane 
+𝜋𝜋 -rota�on symmetry, 𝐶𝐶
+2𝑧𝑧 . As a result, rota�ng the hBN by 180° rela�ve to RMG leaves the moiré 
+wavelength unchanged, but swaps the local stacking of boron and nitrogen with respect to graphene’s 
+A and B subla�ces.  This deﬁnes a discrete binary degree of freedom that we refer to as alignment 
+orientation. The two alignment orienta�ons, labeled 𝜉𝜉= 0 and 𝜉𝜉= 1, are not symmetry relate d and 
+therefore specify two classes of dis�nct physical systems. Despite a long history of careful studies on 
+hBN alignment [9,10,13,28], previously chosen con�nuum model parameters cri�cally underes�mate 
+its eﬀect. A few studies have begun to address this point, including experimental evidence of 𝜉𝜉 -
+dependent non-local transport [29] and crystal ﬁelds [30] in bilayer graphene. Un�l now, a systema�c 
+inves�ga�on of alignment orienta�on in correlated graphene based moiré systems has been lacking. 
+In this work, we show that the alignment orienta�on 𝜉𝜉  exerts a profound inﬂuence on correlated 
+ground states in rhombohedral pentalayer graphene (R5LG) aligned to hBN. This diﬀerence is most 
+apparent in the moiré-proximate regime, where an external displacement ﬁeld is used to push the 
+charge carriers towards the botom graphene layer, proximate to the aligned hBN. Tunneling between 
+graphene and hBN creates a moiré poten�al that is dominated by a par�cular carbon-boron tunnelling 
+process in part of the unit cell [12]. We ﬁnd that this process is essen�ally switched on or oﬀ by the 
+alignment orienta�on, eﬀec�vely crea�ng a strong moiré poten�al for 𝜉𝜉= 1, but a weak moiré for 𝜉𝜉= 
+0. This microscopic diﬀerence ul�mately leads to qualita�vely dis�nct correlated states and phase 
+diagrams for the two alignment orienta�ons. We demonstrate that these diﬀerences not only 
+dis�nguish between 𝜉𝜉=  1 and 𝜉𝜉=  0 devices, but also account for the main varia�ons and 
+inconsistencies among previously reported phase diagrams in RMG/hBN aligned devices. 
+To isolate the role of 𝜉𝜉, we fabricated nearly iden�cally aligned R5LG/hBN devices that diﬀer only in 
+their hBN alignment orienta�on. Transport measurements reveal markedly diﬀerent symmetry-broken 
+phases in the electron-doped regime. Complementary SQUID-on-�p magnetometry further uncovers 
+sharp magne�c transi�ons, spin and valley-polarized states, and an intervening weakly-magne�c phase 
+that appears only in one 𝜉𝜉 conﬁgura�on. These experimental results are supported by single-par�cle 
+and mean-ﬁeld theore�cal models, which show how 𝜉𝜉 controls the single-par�cle band structure and 
+consequently the hierarchy of  spontaneous symmetry breaking. Our ﬁndings iden�fy alignment 
+orienta�on as a cri�cal tuning knob in moiré-engineered graphene systems that must be accounted 
+for to interpret past experiments and design future devices. 
+Transport measurements 
+Four dual-gated R5LG/hBN devices were fabricated using the dry-transfer method (Extended Data Fig. 
+1, Methods). In all four devices, the R5LG is nearly perfectly aligned to the botom hBN substrate, with 
+
+===== PAGE 3 =====
+3 
+ 
+an es�mated twist angle 𝜃𝜃≈ 0.3°. The dc voltages 𝑉𝑉𝑡𝑡𝑡𝑡
+𝑑𝑑𝑑𝑑 and 𝑉𝑉𝑏𝑏𝑡𝑡
+𝑑𝑑𝑑𝑑, applied to the top and botom gates, 
+enable simultaneous tuning of the carrier density 𝑛𝑛 and the out-of-plane displacement ﬁeld 𝐷𝐷 (Fig. 
+1c). Transport measurements of longitudinal resistance 𝑅𝑅𝑥𝑥𝑥𝑥 and Hall carrier density 𝑛𝑛𝐻𝐻, were 
+performed at a temperature 𝑇𝑇≈ 500 mK as a func�on of the ﬁlling factor 𝜈𝜈= 4𝑛𝑛/𝑛𝑛s and 𝐷𝐷 (where 
+𝑛𝑛s  denotes the density corresponding to four electrons per moiré unit cell). Despite their nearly 
+iden�cal twist angles, the devices exhibit qualita�vely diﬀerent behavior and naturally separate into 
+two dis�nct classes (Extended Data Fig. 2). An�cipa�ng their microscopic origin, we label these classes 
+by their alignment orienta�on, 𝜉𝜉= 0 or 𝜉𝜉= 1. 
+Figures 1a ,b show 𝑅𝑅𝑥𝑥𝑥𝑥(𝜈𝜈, 𝐷𝐷)  for representa�ve 𝜉𝜉=  1 and 𝜉𝜉=  0 devices, respec�vely. A posi�ve 
+(nega�ve) 𝐷𝐷 pushes electrons (holes) toward the graphene layer adjacent to the aligned hBN (moiré-
+proximate side, Fig. 1c). In the moiré-distant quadrants (see labels in Fig. 1a) , the phase diagrams of 
+both devices are broadly similar to unaligned rhombohedral graphene samples (Methods). In contrast, 
+the moiré-proximate regime reveals striking diﬀerences between the two devices. These diﬀerences 
+are especially pronounced at posi�ve integer moiré ﬁllings (Fig. 1e). The 𝜉𝜉= 1 device (blue curves) 
+exhibits strong insula�ng states at all integer ﬁllings 𝜈𝜈= 1, 2, 3, and 4, with peak resistances exceeding 
+~100 kΩ that persist across the en�re experimentally accessible range of high 𝐷𝐷. The insula�ng state 
+at 𝜈𝜈= 4 corresponds to a single-par�cle band insulator with four electrons per moiré unit cell, while 
+the states 𝜈𝜈=  1, 2, 3 reﬂect interac�on-driven, symmetry-broken insulators common in strongly 
+correlated moiré systems [31]. By contrast, the 𝜉𝜉= 0 device exhibits much weaker insula�ng features 
+that terminate at moderate 𝐷𝐷. The 𝑅𝑅𝑥𝑥𝑥𝑥 peak at 𝜈𝜈 =  1 is substan�ally reduced, and those at 𝜈𝜈= 2, 3, 
+4 reach only a few kΩ, persis�ng over narrow regions of 𝐷𝐷. The contrast is especially stark at 𝜈𝜈= 3 
+and 4: for 𝜈𝜈= 3, the 𝜉𝜉= 0 device displays only a faint, sharply conﬁned resistance peak, while at 𝜈𝜈= 
+4, the insula�ng feature, though broader in 𝐷𝐷 , is markedly weaker than in the 𝜉𝜉= 1  device and 
+terminates abruptly. 
+To further inves�gate the symmetry-broken phases, we measure the Hall resistance while sweeping 
+the out-of-plane magne�c ﬁeld 𝐵𝐵𝑎𝑎. Figure 1d presents representa�ve 𝑅𝑅𝑥𝑥𝑥𝑥(𝐵𝐵𝑎𝑎) traces taken at a ﬁxed 
+point in the (𝜈𝜈, 𝐷𝐷) plane marked by the red dots in Figs. 1a,b. The 𝜉𝜉= 0 device shows a pronounced 
+anomalous Hall eﬀect with a sharp, hystere�c jump in 𝑅𝑅𝑥𝑥𝑥𝑥  across 𝐵𝐵𝑎𝑎=  0 T, signaling spontaneous 
+�me-reversal symmetry breaking and the emergence of orbital magne�za�on. In contrast, the 𝜉𝜉= 1 
+device at the same (𝜈𝜈, 𝐷𝐷)  shows a linear, non -hystere�c 𝑅𝑅𝑥𝑥𝑥𝑥(𝐵𝐵𝑎𝑎)  with zero value at 𝐵𝐵𝑎𝑎=  0 T, 
+consistent with a nonmagne�c ground state. 
+These contras�ng behaviors reveal a fundamental diﬀerence in the spontaneous symmetry breaking 
+between the two devices, despite their nearly iden�cal twist angles. The discrepancy is most 
+pronounced on the moiré -proximate side, where the inﬂuence of the moiré poten�al is strongest—  
+poin�ng to underlying moiré structure as the likely origin. Given the near-iden�cal twist angles across 
+all devices, we atribute the observed diﬀerences between the two classes of devices to the alignment 
+orienta�on, which determines the eﬀec�ve strength of the moiré poten�al, as discussed next. 
+Single-par�cle theory 
+To inves�gate the impact of alignment orienta�on, we undertake a theore�cal analysis of the single-
+par�cle band structure of R5LG aligned with hBN. We model the system using a con�nuum approach 
+that incorporates the moiré superla�ce poten�al, interlayer coupling, subla�ce asymmetry, and 
+phenomenological la�ce relaxa�on [8,9,11,12,32]. This framework enables us to evaluate how the 
+alignment orienta�on aﬀects the resul�ng miniband structure.  
+ 
+ 
+
+===== PAGE 4 =====
+4 
+ 
+Fig. 1. Transport measurements of R5LG/hBN devices. a, 𝑅𝑅𝑥𝑥𝑥𝑥 versus 𝜈𝜈 and 𝐷𝐷 measured at 𝐵𝐵𝑎𝑎= 0 T 
+and 𝑇𝑇= 500 mK in 𝜉𝜉= 1 device. Moiré-proximate (distant) quadrants, where the ac�ve carriers are 
+pushed towards (away from) the aligned hBN, are labeled. In the electron-doped, moiré-proximate 
+regime (upper right quadrant), resistance peaks appear at charge neutrality and at the moiré band gap 
+(𝜈𝜈= 4), which are consistent with single par�cle physics, while interac�on-induced peaks appear at 
+𝜈𝜈= 1, 2, 3.  The black dashed lines trace the 𝑅𝑅𝑥𝑥𝑥𝑥 peaks at integer ﬁllings. b, Same as (a) , but for the 
+𝜉𝜉 =  0 device at 𝐵𝐵𝑎𝑎= 50 mT, which exhibits weaker resistance peaks that span a smaller region in 𝐷𝐷. 
+c, Schema�c cross -sec�on of the R5LG/hBN devices. Posi�ve 𝐷𝐷  pushes electron wave func�ons 
+(schema�cally marked in purple) towards the botom graphene layer closest to the aligned hBN and 
+the resul�ng moiré. d, 𝑅𝑅𝑥𝑥𝑥𝑥  vs. 𝐵𝐵𝑎𝑎  at 𝜈𝜈=  1.37 and 𝐷𝐷=  0.6 V/nm (red dot s in (a ) and ( b)) in both 
+devices. The 𝜉𝜉=  0 device displays anomalous Hall eﬀect and hysteresis, whereas the 𝜉𝜉=  1 device 
+shows no evidence of anomalous Hall resistance corresponding to the intervening nonmagne�c phase. 
+e, Linecuts of 𝑅𝑅𝑥𝑥𝑥𝑥 vs. 𝐷𝐷 along the insula�ng peaks at 𝜈𝜈= 1, 2, 3, and 4 for the two devices. The 𝜉𝜉= 1 
+device shows markedly higher 𝑅𝑅𝑥𝑥𝑥𝑥 values that persist over a larger range of 𝐷𝐷. 
+ 
+ 
+
+
+===== PAGE 5 =====
+5 
+ 
+We begin by examining the real -space structure of the moiré la�ce, produced by the small la�ce 
+constant mismatch and angle 𝜃𝜃  between the graphene and hBN la�ces. The corresponding moiré 
+Brillouin zone (mBZ) is shown in Fig. 2a.  As both RMG and hBN lack 𝐶𝐶2𝑧𝑧  symmetry, there are two 
+inequivalent alignment orienta�ons between the hBN and the graphene layers  [9,10,13,28], 
+corresponding to applying a π rota�on to the hBN layer alone. In systems where one or both layers are 
+𝐶𝐶2𝑧𝑧  symmetric, such as twisted bilayer graphene or monolayer graphene- hBN, the two alignment 
+orienta�ons are equivalent. As we show next, the alignment orienta�on has a profound impact on the 
+moiré R5LG.   
+Fig. 2. Comparison of R5LG/hBN alignment orienta�ons 𝝃𝝃 in single-par�cle model. a, Schema�c side 
+view of rhombohedral pentalayer graphene aligned to hBN and the hBN/R5LG moiré Brillouin zone 
+(mBZ) with high-symmetry points 𝛤𝛤, 𝑋𝑋, 𝑌𝑌 and 𝑀𝑀. The subla�ce-polarized electronic wavefunc�ons at 
+the top and botom graphene layers are shown schema�cally in purple. b, Stacking conﬁgura�ons in 
+the AA (gray), CB (red), and CN (blue) regions of the moiré unit cell, illustra�ng the rela�ve posi�ons 
+of boron and nitrogen atoms with respect to graphene subla�ces A1 and B1 for 𝜉𝜉= 1 (top) and 𝜉𝜉= 
+0 (botom). In presence of relaxa�on, the CB1 and CB0 stackings (red boxes) occupy most of the moiré 
+unit cell area as illustrated by red regions in (c). On the moiré-proximate side, the conduc�on electrons 
+(purple) predominantly occupy the A1 subla�ce. c, Real-space schema�cs of the moiré la�ce showing 
+that in the absence of relaxa�on (le�) the diﬀerent stacking regions are of equal size. With relaxa�on 
+(right), the area of the CB stacking region expands while AA and CN regions shrink . d, Calculated 
+density of states (DOS) as a func�on of moiré ﬁlling 𝜈𝜈 and displacement poten�al ∆ for 𝜉𝜉= 1. e, Single-
+par�cle band structure of a single valley and spin for 𝜉𝜉=  1 and ∆ =  60 meV (dashed line in (d)) , 
+showing an isolated ﬂat conduc�on band (C1). f, Same as (d) for 𝜉𝜉= 0. g, Same as (e) for 𝜉𝜉= 0. The 
+C1 band has par�al overlap with higher conduc�on bands.  
+The moiré unit cell is par��oned into three regions based on the local stacking conﬁgura�on, 
+illustrated in Figs 2b,c. In the AA regions (gray in Fig. 2c), carbon atoms from both A1 and B1 subla�ces 
+of the botom graphene layer sit directly atop hBN atoms, while in the CB/CN regions (red/blue), atoms 
+
+
+===== PAGE 6 =====
+6 
+ 
+of a single carbon subla�ce sit above either boron/nitrogen atoms, respec�vely. These names are 
+analogous to the MM/MX/XM stackings of homobilayer TMD moiré systems that also lack 𝐶𝐶2𝑧𝑧  [33–
+36]. We cau�on that the AA/AB/BA stackings of twisted bilayer graphene behave quite diﬀerently in 
+that AB and BA are symmetry-related, whereas CB and CN are symmetry-inequivalent in R5LG moirés. 
+Chemistry dictates that the most energe�cally favorable local stacking is the CB conﬁgura�on, since 
+the boron (nitrogen) atoms will gain a posi�ve (nega�ve) charge due to their electronega�vity 
+diﬀerences [8,10,11,37]. As the la�ce undergoes relaxa�on, one expects the CB regions will thus 
+expand, while the AA and CN regions will shrink. Indeed, both elas�c theory [12,29] and ab initio [38] 
+calcula�ons ﬁnd the CB region expands to occupy the majority of the moiré unit cell, especially at small 
+angles where la�ce relaxa�on eﬀects are pronounced [12]. This is shown schema�cally in Fig. 2c, 
+where a�er relaxa�on the CB region (red) dominates most of the unit cell. Importantly, the la�ce 
+relaxion is qualita�vely iden�cal for both alignment orienta�ons [29]. 
+In R5LG, an applied displacement ﬁeld induces strong subla�ce and layer polariza�on, localizing 
+conduc�on band electrons of the lowest graphene layer primarily to the A1 subla�ce on the moiré 
+proximate side (Fig. 2a) [1,39]. This subla�ce polariza�on, combined with the enlarged CB regions, 
+produces drama�c diﬀerences between the moiré poten�als of the two alignment orienta�ons. For 
+𝜉𝜉= 1 (CB1 region in Fig. 2b), the A1 sites are aligned directly above boron atoms, allowing for eﬃcient 
+interlayer tunneling and genera�ng a strong moiré poten�al. In contrast, for 𝜉𝜉= 0 (CB0 region), the 
+A1 carbon resides over an empty site in the hBN la�ce , suppressing tunnelling and signiﬁcantly 
+weakening the moiré poten�al. We conclude that three simple ingredients— the dominance of CB 
+stacking due to relaxa�on, the A1 subla�ce polariza�on of conduc�on electrons, and the alignment 
+orienta�on placing boron proximate to either A1 or B1 within CB domains— thus lead to a pronounced 
+asymmetry in moiré strength between the two orienta�ons.  
+The fact that the alignment orienta�on selects a strong versus weak moiré poten�al is reﬂected in the 
+single par�cle band structures. Modelling the electronic structure of R5LG/hBN requires specifying 
+nearly a dozen parameters, many of which are challenging to constrain independently. To avoid over-
+ﬁ�ng, we model the moiré poten�al, correctly incorpora�ng la�ce relaxa�on following Ref.  [32] (see 
+Methods). La�ce relaxa�on aﬀects the band structure profoundly, opening gaps and shi�ing the 
+posi�ons of the van Hove singulari�es (Extended Data Fig. 6). This model, whose only free parameter 
+is the alignment orienta�on 𝜉𝜉,  was quan�ta�vely validated in Bernal bilayer graphene-hBN 
+experiments [32]. Figures 2e,g show the calculated band structures for 𝜉𝜉=  1,0 under a strong 
+displacement ﬁeld in the moiré-proximate regime. In both cases, the ﬁrst conduc�on band (C1) is in 
+the ﬂat band regime, where strong electron correla�ons are expected. However, the degree of ﬂat-
+band isola�on diﬀers markedly: for 𝜉𝜉= 1, the C1 band is fully separated from higher conduc�on bands 
+by a sizable gap, while for 𝜉𝜉= 0, it par�ally overlaps with higher bands and lacks a global gap. This is 
+a direct consequence of the dichotomy in moiré poten�al strengths for the two alignment orienta�ons. 
+These features are reﬂected in the single-par�cle density of states (DOS) maps (Figs. 2d,f). For 𝜉𝜉= 1, 
+a full gap above C1 persists across the moiré -proximate displacement range, as evidenced by the 
+vanishing DOS at 𝜈𝜈= 4 in Fig. 2d (blue). In contrast, for 𝜉𝜉= 0, the analogous gap closes over most of 
+the displacement range. Notably, both conﬁgura�ons exhibit a pronounced van Hove singularity near 
+∆ ≈ 30–40 meV (red peaks in Figs. 2d,f), where the curvature of the C1 band switches from concave 
+up to concave down. In the presence of interac�ons, such singulari�es promote ﬂavor symmetry 
+breaking and can stabilize correlated insulators. For 𝜉𝜉= 1, the well-isolated ﬂat band supports strong 
+insula�ng behavior at 𝜈𝜈= 1, 2, 3, and 4. In contrast, the lack of full band isola�on in 𝜉𝜉= 0 weakens 
+these tendencies, making metallic states more likely. These theore�cal expecta�ons align with the 
+transport data in Fig. 1: the 𝜉𝜉= 1 device exhibits robust insula�ng states across all integer ﬁllings, 
+while the 𝜉𝜉=  0 device shows much weaker and more limited features. Addi�onal pronounced 
+
+===== PAGE 7 =====
+7 
+ 
+diﬀerences between the two alignment orienta�ons are observed in other transport measurements, 
+including the Hall carrier density as shown in Extended Data Fig. 3. 
+SQUID-on-�p magnetometry 
+To probe the nature of the symmetry -broken states, we employ scanning SQUID -on-�p (SOT) 
+magnetometry [40,41], which directly reveals the magne�c signatures of electronic ordering  [5,42]. 
+Spontaneous magne�za�on in these systems indicates broken �me-reversal-symmetry (TRS), arising 
+from spin and/or orbital moments. In spin -polarized phases, each electron contribute s a ﬁxed 
+magne�c moment of  ~1 Bohr magneton, 𝜇𝜇𝐵𝐵. Orbital magne�za�on, in contrast, stems from  Berry 
+curvature in topological bands, and thus can be signiﬁcantly larger [42]. Importantly, orbital moments 
+have opposite signs in opposite valleys, so a net orbital signal requires valley polariza�on.  
+In our measurements, an indium SOT of diameter 𝑑𝑑≅ 200 nm and ~10 nT/Hz 1/2 ﬁeld sensi�vity was 
+scanned at a height of ℎ ≅ 200 nm above the sample surface in the presence of small 𝐵𝐵a (Methods). 
+A small ac voltage applied to one of the gates modulates the carrier density by 𝑛𝑛𝑎𝑎𝑑𝑑 (𝜈𝜈𝑎𝑎𝑑𝑑= 4𝑛𝑛𝑎𝑎𝑑𝑑/𝑛𝑛s), 
+and the resul�ng measured ac magne�c signal, 𝐵𝐵𝑧𝑧𝑎𝑎𝑑𝑑= 𝑛𝑛𝑎𝑎𝑑𝑑𝑑𝑑𝐵𝐵𝑧𝑧/𝑑𝑑𝑛𝑛, is propor�onal to the diﬀeren�al 
+magne�za�on 𝑚𝑚𝑧𝑧= 𝑑𝑑𝑀𝑀𝑧𝑧/𝑑𝑑𝑛𝑛, which is the deriva�ve of the local magne�za�on 𝑀𝑀𝑧𝑧 with respect to 𝑛𝑛.  
+Figure 3a shows the 𝐵𝐵𝑧𝑧𝑎𝑎𝑑𝑑 map for the 𝜉𝜉= 1 device in the electron-doped, moiré-proximate quadrant, 
+where correlated phases are discerned in transport. We observe 𝐵𝐵𝑧𝑧𝑎𝑎𝑑𝑑 signals corresponding to local 
+diﬀeren�al magne�za�on of ~5 to 15 µB per electron (Methods; Extended Data Fig. 4)— comparable 
+values to magic-angle twisted bilayer graphene (MATBG) [42]— indica�ng TRS breaking and valley 
+polariza�on. At lower 𝐷𝐷≈  0.4 V/nm, strong posi�ve (red) and nega�ve (blue) lobes ﬂank 𝜈𝜈=  1, 
+consistent with a singly degenerate Fermi surface (1-fold metal), where the 𝐾𝐾 and 𝐾𝐾’ valleys of the C1 
+ﬂat band are occupied sequen�ally on the 𝜈𝜈<  1 and 𝜈𝜈>  1 sides, respec�vely. Similar behavior 
+appears around 𝜈𝜈= 3, while near 𝜈𝜈= 2 the signal is minimal, indica�ng a valley-symmetric ground 
+state. 
+Upon increasing 𝐷𝐷 at 𝜈𝜈= 1, the magne�c signal is abruptly suppressed at 𝐷𝐷≈ 0.5 V/nm, followed by 
+a reemergence at 𝐷𝐷≈ 0.8 V/nm. This reentrant behavior is unexpected from transport data, which 
+show a single con�nuous peak in 𝑅𝑅𝑥𝑥𝑥𝑥 at 𝜈𝜈= 1 that persists to the highest 𝐷𝐷 (Fig. 1a). In contrast, the 
+𝐵𝐵𝑧𝑧𝑎𝑎𝑑𝑑  map (Fig. 3a) reveals a  clear 𝐷𝐷  dependent transi�on into and out of an intervening weakly-
+magne�c (WM) phase. Figure 3b presents a schema�c phase diagram for the 𝜉𝜉= 1 device, inferred 
+from 𝑅𝑅𝑥𝑥𝑥𝑥 , 𝑛𝑛𝐻𝐻  (Extended Data Fig. 3), and 𝐵𝐵𝑧𝑧𝑎𝑎𝑑𝑑  (Methods). Black ver�cal dashed lines  mark resis�ve 
+peaks in 𝑅𝑅𝑥𝑥𝑥𝑥 corresponding to gapped states. Gray regions denote four-fold symmetric ground states, 
+blue marks two-fold symmetric phases, and red indicates valley-polarized (VP) symmetry-broken states 
+with strong magne�za�on, consistent with sequen�al ﬁlling of singly degenerate (1-fold) bands. The 
+intervening WM phase (light blue) includes gapped states at 𝜈𝜈= 1 and 3, and must therefore also be 
+1-fold. The most plausible interpreta�on for this 1-fold WM state (see Methods for alterna�ves) is an 
+spin-polarized intervalley coherent (IVC-SP) phase, as previously observed in rhombohedral trilayer 
+graphene [43,44].  
+The corresponding 𝐵𝐵𝑧𝑧𝑎𝑎𝑑𝑑 map for the 𝜉𝜉= 0 device (Fig. 3d) reveals a qualita�vely diﬀerent magne�c 
+phase diagram. At high doping, the system remains four-fold degenerate. As 𝜈𝜈 decreases, it transi�ons 
+into twofold-degenerate state— likely a valley -balanced but spin ordered phase ( blue region in Fig. 
+3e)— evidenced by a narrow nega�ve peak in 𝐵𝐵𝑧𝑧𝑎𝑎𝑑𝑑  along the transi�on line, reﬂec�ng a step in 
+magne�za�on. With further reduc�on in 𝜈𝜈, the system enters a valley polarized, singly degenerate (1-
+fold) phase, characterized by strong diﬀeren�al magne�za�on near 𝜈𝜈=  1. These two consecu�ve 
+transi�ons, from four-fold to two-fold and then to a valley-polarized 1-fold state, occur at similar 𝑛𝑛 and 
+𝐷𝐷 also in the moiré distant region (Extended Data Fig. 4), as well as in a non-aligned R5LG device (Fig. 
+3e inset; Methods). These similari�es suggest that the moiré poten�al in the 𝜉𝜉= 0 device is rela�vely 
+weak, ac�ng as a perturba�on to the unaligned system away from integer ﬁllings. In addi�on, at the 
+
+===== PAGE 8 =====
+8 
+ 
+lowest densi�es, we ﬁnd a highly insula�ng nonmagne�c phase (yellow in Fig. 3e), possibly indica�ng 
+forma�on of a Wigner crystal (WC). Notably, the large magne�za�on around 𝜈𝜈= 1 in the 𝜉𝜉= 0 device 
+persists from 𝐷𝐷≈ 0.3 V/nm to our highest atenable 𝐷𝐷. This is in contrast with 𝜉𝜉= 1 device, which 
+displays a much weaker magne�za�on in the intervening WM phase at intermediate 𝐷𝐷≈ 0.6 V/nm 
+values, consistent with the 𝑅𝑅𝑥𝑥𝑥𝑥 data in Fig. 1d. The more complex phase diagram in the 𝜉𝜉= 1 case 
+provides further evidence for stronger moiré eﬀects in this alignment orienta�on. 
+Fig. 3. Local magne�c measurements and symmetry -broken phase diagrams. a , 𝐵𝐵𝑧𝑧𝑎𝑎𝑑𝑑(𝜈𝜈, 𝐷𝐷) map for 
+the 𝜉𝜉= 1 device measured by the SOT in 𝐵𝐵𝑎𝑎= 77 mT with 𝜈𝜈𝑎𝑎𝑑𝑑= 0.079, revealing TRS broken states 
+with large diﬀeren�al magne�za�on. b, Inferred schema�c phase diagram of R5LG/hBN for alignment 
+orienta�on 𝜉𝜉= 1 outlining main phases: 4-fold symmetric (Sym, gray), 2-fold valley-degenerate spin-
+polarized (VD-S P,  blue), 1-fold valley and spin polarized (VP -SP , red), and 2-fold intervening weakly-
+magne�c (WM) state that is spin-polarized and possibly IVC phase (IVC-S P,  light blue). c, Diﬀeren�al 
+magne�za�on 𝑚𝑚𝑧𝑧(𝜈𝜈) computed from the Stoner model for 𝜉𝜉= 1 (Methods). d, Same as (a) for the 
+𝜉𝜉=  0 device measured at 𝐵𝐵𝑎𝑎=  10 mT  with 𝜈𝜈𝑎𝑎𝑑𝑑=  0.021. The weaker 𝐵𝐵𝑧𝑧𝑎𝑎𝑑𝑑  signal rela�ve to (a) 
+approximately scales with the rela�vely smaller 𝜈𝜈𝑎𝑎𝑑𝑑.  e, Same as (b) for the 𝜉𝜉=  0 alignment 
+orienta�on. The yellow region indicates an insula�ng nonmagne�c phase, possibly a Wigner crystal 
+(WC). Inset: Schema�c phase diagram of R5LG without hBN alignment (see Extended Data Fig. 5). f, 
+Same as (c) for 𝜉𝜉= 0. g, Flavor-resolved occupa�ons 𝜈𝜈𝑖𝑖 in the Stoner model as a func�on of total ﬁlling 
+𝜈𝜈  for 𝜉𝜉=  1 at  displacement poten�al ∆ =  40 meV along the black dashed line in (c). The diﬀerent 
+ﬂavors ﬁll the C1 band sequen�ally. h, Same as (g) for 𝜉𝜉= 0 alignment orienta�on. For 𝜈𝜈> 2, the C2 
+band is occupied prior to full ﬁlling of C1 band. 
+
+
+===== PAGE 9 =====
+9 
+ 
+Stoner model 
+To gain further insight into the observed ﬂavor-ordering transi�ons, we use a simple phenomenological 
+model based on Stoner ferromagne�sm. Speciﬁcally, we consider the conduc�on bands in the 
+presence of strong Coulomb interac�ons and an eﬀec�ve Hund’s coupling (Methods). As in the single-
+par�cle analysis, we avoid elaborate  ﬁ�ng and instead adopt interac�on parameters previously 
+established in studies of rhombohedral trilayer graphene [3]. Solving the model under standard mean-
+ﬁeld approxima�ons yields the electron density in each ﬂavor as a func�on of 𝑛𝑛 and 𝐷𝐷. To compare 
+with the SOT measurements, we compute the single-par�cle orbital magne�za�on for each ﬂavor as 
+a func�on of its density, then derive the total 𝑀𝑀𝑧𝑧(𝜈𝜈) and diﬀeren�al 𝑚𝑚𝑧𝑧(𝜈𝜈) magne�za�ons, based on 
+the ﬂavor-ﬁlling sequence predicted by the Stoner model (Methods). 
+The experimental data in Figs. 3a,d reveal a clear contrast in how the moiré minibands are ﬁlled in the 
+𝜉𝜉= 1 and 𝜉𝜉= 0 devices. For 𝜉𝜉= 1 at 𝐷𝐷= 0.4 V/nm, the system ﬁlls the C1 band sequen�ally, ﬂavor 
+by ﬂavor, before transi�oning to the second conduc�on band (C2). This ﬁlling sequence manifests as 
+an alterna�ng red–blue–red–blue 𝐵𝐵𝑧𝑧𝑎𝑎𝑑𝑑 signal, with sign reversal at each integer ﬁllings. Our Stoner 
+model calcula�ons of 𝑚𝑚𝑧𝑧(𝜈𝜈, 𝐷𝐷) (Fig. 3c) closely reproduce the key experimental features: the correct 
+order of magnitude of 𝑚𝑚𝑧𝑧 of up to 20 µB/e (Methods), alterna�ng lobes of posi�ve and nega�ve 𝑚𝑚𝑧𝑧 
+near 𝜈𝜈= 1 and 3 at low 𝐷𝐷, a WM phase at intermediate 𝐷𝐷, and reentrant magne�za�on at high 𝐷𝐷. 
+Figure 3g further supports this interpreta�on, showing the calculated ﬂavor-resolved occupa�ons 𝜈𝜈𝑖𝑖 
+as a func�on of total ﬁlling 𝜈𝜈  at displacement poten�al ∆ =  40 meV. The model  predicts that the 
+system sequen�ally ﬁlls the C1 band in the order 𝐾𝐾↑, 𝐾𝐾′↑, 𝐾𝐾↓, and 𝐾𝐾′↓ before any occupa�on of C2 
+begins, consistent with experimental observa�ons. 
+The Stoner calcula�ons for 𝜉𝜉= 0 yield a sharply diﬀerent phase diagram (Fig. 3f) that also qualita�vely 
+matches the SOT data in Fig. 3d. The model captures the alterna�ng 𝑚𝑚𝑧𝑧 near 𝜈𝜈= 1, the weak magne�c 
+signal in the spin-polarized phase for 𝜈𝜈> 2, and the nega�ve 𝑚𝑚𝑧𝑧 associated with transi�on to a fully 
+symmetric metallic state for 𝜈𝜈> 3. The ﬂavor ﬁlling sequence, however, diﬀers markedly from the 𝜉𝜉= 
+1 case. In par�cular, the red lobe in Fig. 3d persists beyond 𝜈𝜈= 1, sugges�ng that a�er one ﬂavor of 
+the C1 band is ﬁlled, the system then ﬁlls another band in the same valley, likely C2. This interpreta�on 
+is supported by the Stoner results in Fig. 3h, which show that C2 begins to ﬁll above 𝜈𝜈= 2, before all 
+four ﬂavors in C1 are fully occupied. 
+The contras�ng behavior of the two alignment orienta�ons can be traced back to the close compe��on 
+between exchange energy, which favors ﬂavor polariza�on, and the single-par�cle gap to the second 
+conduc�on band. For 𝜉𝜉= 1, the presence of a sizable gap above C1 favors full occupa�on of each 
+ﬂavor within C1 before accessing higher bands, resul�ng in sequen�al ﬂavor ﬁlling. For 𝜉𝜉=  0, by 
+contrast, the absence of a well-deﬁned gap makes it energe�cally favorable to begin ﬁlling C2 before 
+C1, leading to a diﬀerent hierarchy of symmetry breaking. These results highlight the importance of 
+band isola�on in shaping the interac�on-driven ground states. Remarkably, this simple Stoner model—
+without any ﬁ�ng parameters— captures the dis�nct phase diagrams and ﬂavor ﬁlling sequences 
+observed in both 𝜉𝜉 conﬁgura�ons. 
+Discussion 
+Our results demonstrate that the hBN alignment orienta�on 𝜉𝜉 is a crucial determinant of correlated 
+phase behavior in rhombohedral graphene/hBN moiré systems. Devices with nearly iden�cal twist 
+angles but diﬀerent alignment orienta�on 𝜉𝜉 exhibit strikingly dis�nct sequences of symmetry-broken 
+states, magne�c transi�ons, and miniband structures— par�cularly on the moiré-proximate side , 
+where moiré eﬀects are strongest. For 𝜉𝜉=  1, R5LG/hBN displays Stoner magne�sm and strongly 
+correlated ﬂat-band physics, whereas for 𝜉𝜉= 0, the system more closely resembles non-moiré R5LG, 
+exhibi�ng only weak signatures of a moiré-induced eﬀects. 
+
+===== PAGE 10 =====
+10 
+ 
+A minimal Stoner ferromagne�sm model reproduces the key experimental features of both device 
+types, including the number and type of magne�c lobes, the hierarchy of ﬂavor symmetry breaking, 
+and the reentrant magne�za�on in the 𝜉𝜉= 1 case. Crucially, all parameters of the model except 𝜉𝜉 are 
+held ﬁxed . This shows that a single theore�cal framework— without ﬁ�ng— can account for the 
+dis�nct behaviors of both 𝜉𝜉  conﬁgura�ons. The eﬀect of 𝜉𝜉  arises from the combined inﬂuence of 
+subla�ce polariza�on, moiré relaxa�on, and the local stacking conﬁgura�on between graphene and 
+hBN: depending on the alignment orienta�on, the subla�ce-polarized conduc�on electrons  
+experience enhanced or suppressed carbon-boron tunneling, resul�ng in a pronounced asymmetry in 
+moiré poten�al strength. 
+Currently, there is no experimental technique capable of determining 𝜉𝜉 during the assembly process. 
+Consequently, devices cannot be systema�cally fabricated with a known alignment orienta�on, and 
+nominally iden�cal stacking protocols may result in diﬀerent 𝜉𝜉 values. This fundamental uncertainty 
+poses a challenge for reproducibility and complicates the interpreta�on of experimental results across 
+devices. In addi�on, the layered structure of hBN— where each successive atomic plane is rotated by 
+180°— means that even a single atomic step in the hBN substrate locally ﬂips the alignment orienta�on. 
+Such steps can introduce sharp transi�ons in 𝜉𝜉  within the same device, leading to spa�al 
+inhomogenei�es and complex global behavior. Together, these two eﬀects provide a natural 
+explana�on for the variability and apparent inconsistencies observed in moiré graphene systems. 
+Our new understanding of subla�ce alignment orienta�on oﬀers a powerful framework to 
+retrospec�vely categorize earlier studies that overlooked this structural parameter. In par�cular, strong 
+insula�ng behavior at 𝜈𝜈= 3 and 4 on the moiré-proximate side serves as a robust empirical signature 
+of 𝜉𝜉=  1 devices, enabling reliable assignment of alignment orienta�on based on electron-side 
+transport phase diagrams. As summarized in Table 1, this approach allows for consistent classiﬁca�on 
+of nearly all published rhombohedral moiré graphene devices spanning four to seven layers, helping 
+to resolve apparent discrepancies between seemingly similar systems.  
+Reference No of layers Device Moiré wavelength/Angle 𝝃𝝃 
+Choi et al., [45] 4 A 14.5 ~14.8 nm 0 
+Lu et al., [18] 5 1 11.5 nm, 0.77° 1 
+Waters et al., [16] 5 - 10.8 nm, 0.90° 0 
+Aronson et al., [17] 5 D1, D2 12.4 nm, 0.63° 0 
+Li et al., [46] 5 - 10.1 nm, 1.02° 0 
+This work 
+5 A 14.69 nm, 0.06° 1 
+5 B 14.20 nm, 0.26° 1 
+5 C 14.05 nm, 0.29° 0 
+5 D 14.05 nm, 0.29° 0 
+Xie et al., [19] 6 - 14.5 nm, 0.17° 0 
+Zhou et al., * [47] 7 D2 Top hBN 0.88°  
+Botom hBN 0.90° 
+0 
+1 
+Ding et al., [48] 7 D1 0.86° 1 
+Wang et al., [20] 7 - 12.3 nm 0 
+Table 1. Classiﬁca�on of puta�ve alignment orienta�on 𝝃𝝃 for previously reported RMG/hBN devices. 
+The devices are ordered by the number of graphene layers . Nine RMG/hBN interfaces show 𝜉𝜉= 0, 
+while only ﬁve display 𝜉𝜉=  1. *This work reported a doubly -aligned rhombohedral heptalayer 
+graphene with diﬀerent top and botom 𝜉𝜉 orienta�ons according to our classiﬁca�on.  
+
+===== PAGE 11 =====
+11 
+ 
+Notably, the resul�ng trend indicates that 𝜉𝜉= 1 is less frequently realized in experiments— possibly 
+because its stronger moiré poten�al increases suscep�bility to relaxa�on towards Bernal stacking, 
+misalignment, or other forms of disorder that degrade device quality. The alignment orienta�on 
+determines the type of strongly correlated topological phases that appear. Interes�ngly, Chern 
+insulators have only been observed on the moiré proximate side in samples whose puta�ve alignment 
+orienta�on is 𝜉𝜉= 0 [17]. This asymmetry between alignment orienta�ons thus manifests not only in 
+energe�c diﬀerences, but also in topological proper�es. Another important observa�on is that both 
+alignment orienta�ons appear capable of suppor�ng integer and frac�onal quantum anomalous Hall 
+states at 𝜈𝜈= 1 and 𝜈𝜈= 2/3 on  t he  m oir é-distant side [18,19,49] , where the inﬂuence of subla�ce 
+alignment is compara�vely weaker. S�ll, because these phases originate from the hBN-induced moiré 
+poten�al, their presence and stability may be subtly— but decisively— inﬂuenced by 𝜉𝜉. For instance, 
+alignment orienta�on could shi� the twist angle range over which these states are realized, or aﬀect 
+which frac�onal ﬁllings are stabilized. This may help explain why to date certain frac�onal Chern 
+insulator states have been observed conclusively in only a single work  [18], sugges�ng that 𝜉𝜉 could 
+play a cri�cal and previously unrecognized role in accessing fragile topological phases in moiré systems. 
+This framework may also help clarify a longstanding puzzle in MATBG  aligned to hBN: the quantum 
+anomalous Hall eﬀect has been observed only rarely, and o�en only in a speciﬁc region of the device 
+[49,50]. It is possible that MATBG aligned to hBN undergoes la�ce relaxa�on that breaks 𝐶𝐶2𝑧𝑧 and, 
+therefore, subla�ce alignment plays a similarly decisive role in MATBG, with the QAHE stabilized only 
+when 𝜉𝜉=  1. If 𝜉𝜉=  1 is indeed rare — as our analysis suggests— this could help explain both the 
+extreme scarcity and the apparent irreproducibility of the QAHE in that system. 
+Finally, our ﬁndings underscore the need for theore�cal models to explicitly include 𝜉𝜉 as a structural 
+input. The assump�on that 𝜉𝜉 averages out due to moiré symmetry is invalid in 𝐶𝐶2𝑧𝑧-breaking systems 
+like RMG, where subla�ce- and layer-polariza�on amplify sensi�vity to atomic-scale orienta�on. The 
+alignment 𝜉𝜉 is not a small perturba�on —  it reshapes the en�re interac�on landscape and determines 
+the nature of the emergent correlated ground states. Iden�fying and controlling 𝜉𝜉  is therefore 
+essen�al for understanding and engineering the full range of symmetry-breaking phenomena in moiré 
+systems. 
+ 
+Acknowledgments  
+J.D. and D.E.P . acknowledge discussions with T. Soejima. This work was co -funded by the Minerva 
+Founda�on grant No 140687, by the United States - Israel Bina�onal Science Founda�on (BSF) grant 
+No 2022013, by the Ins�tute for Ar�ﬁcial Intelligence, and by the European Union (ERC, 
+MoireMul�Probe - 101089714). Views and opinions expressed are however those of the author(s) only 
+and do not necessarily reﬂect those of the European Union or the European Research Council. Neither 
+the European Union nor the gran�ng authority can be held responsible for them. E.Z. acknowledges 
+the support of the Goldﬁeld Family Charitable Trust, Leona M. and Harry B. Helmsley Charitable Trust 
+grant #2112-04911, the MIT-Israel Zuckerman STEM Fund, and grant no. NSF PHY-2309135 to the Kavli 
+Ins�tute for Theore�cal Physics (KITP). J.D. was funded by NSF DMR -2220703. K.W. and T.T. 
+acknowledge support from the JSPS KAKENHI (Grant Numbers 21H05233 and 23H02052), the CREST 
+(JPMJCR24A5), JST and World Premier Interna�onal Research Center Ini�a�ve (WPI), MEXT, Japan.   
+This work used t he Expanse cluster at the San Diego Supercomputer Center through alloca�on 
+PHY240272 from the Advanced Cyberinfrastructure Coordina�on Ecosystem: Services & Support
+ 
+(ACCESS) program, which is supported by U.S. Na�onal Science Founda�on grants #2138259, 
+#2138286, #2138307, #2137603, and #2138296. 
+
+===== PAGE 12 =====
+12 
+ 
+Author contribu�ons 
+M.U. fabricated and characterized the samples. M.U., W.Z., S.D. and N.A. performed the local 
+magne�za�on studies. M.U., W.Z., N.A., and S.D. performed the transport measurements and data 
+analysis. M.U. and E.Z. designed the experiment. W.Z., S.D., M.L., N.S.K. and Y .M. fabricated the SOT 
+and the tuning fork, and M.E.H. developed the SOT readout. M.U., M.B., D.E.P . and J.D. performed the 
+single-par�cle theore�cal modeling. J.D. and D.E.P . performed the Stoner calcula�ons. K.W. and T.T. 
+provided the hBN crystals. M.U., M.B., D.E.P ., J.D., W.Z. and E.Z. wrote the original manuscript. All 
+authors par�cipated in discussions and revisions of the manuscript.  
+Compe�ng interests The authors declare no compe�ng interests. 
+ 
+ 
+References 
+1. F. Zhang, B. Sahu, H. Min, and A. H. MacDonald, ''Band structure of ABC -stacked graphene 
+trilayers'', Phys. Rev. B 82, 035409 (2010).  
+2. A. Ghazaryan, T. Holder, E. Berg, and M. Serbyn, ''Mul�layer graphenes as a pla�orm for 
+interac�on-driven physics and topological superconduc�vity'', Phys. Rev. B 107, 104502 
+(2023).  
+3. H. Zhou, T. Xie, A. Ghazaryan, T. Holder, J. R. Ehrets, E. M. Spanton, T. Taniguchi, K. 
+Watanabe, E. Berg, M. Serbyn, and A. F. Young, ''Half- and quarter-metals in rhombohedral 
+trilayer graphene'', Nature 598, 429–433 (2021).  
+4. H. Zhou, L. Holleis, Y. Saito, L. Cohen, W. Huynh, C. L. Paterson, F. Yang, T. Taniguchi, K. 
+Watanabe, and A. F. Young, ''Isospin magne�sm and spin-polarized superconduc�vity in 
+Bernal bilayer graphene'', Science 375, 774–778 (2022).  
+5. N. Auerbach, S. Duta, M. Uzan, Y. Vituri, Y. Zhou, A. Y. Meltzer, S. Grover, T. Holder, P. 
+Emanuel, M. E. Huber, Y. Myasoedov, K. Watanabe, T. Taniguchi, Y. Oreg, E. Berg, and E. 
+Zeldov, ''Isospin magne�c texture and intervalley exchange interac�on in rhombohedral 
+tetralayer graphene'', arXiv:2503.14146 (2025).  
+6. T. Han, Z. Lu, G. Scuri, J. Sung, J. Wang, T. Han, K. Watanabe, T. Taniguchi, H. Park, and L. Ju, 
+''Correlated insulator and Chern insulators in pentalayer rhombohedral-stacked graphene'', 
+Nat. Nanotechnol. 19, 181–187 (2024).  
+7. K. Liu, J. Zheng, Y. Sha, B. Lyu, F. Li, Y. Park, Y. Ren, K. Watanabe, T. Taniguchi, J. Jia, W. Luo, Z. 
+Shi, J. Jung, and G. Chen, ''Spontaneous broken-symmetry insulator and metals in tetralayer 
+rhombohedral graphene'', Nat. Nanotechnol. 19, 188–195 (2024).  
+8. J. Jung, A. Raoux, Z. Qiao, and A. H. MacDonald, ''Ab ini�o theory of moiré superla�ce bands 
+in layered two-dimensional materials'', Phys. Rev. B 89, 205414 (2014).  
+9. P. Moon and M. Koshino, ''Electronic proper�es of graphene/hexagonal-boron-nitride moiré 
+superla�ce'', Phys. Rev. B 90, 155406 (2014).  
+10. J. Herzog-Arbeitman, Y. Wang, J. Liu, P. M. Tam, Z. Qi, Y. Jia, D. K. Efetov, O. Vafek, N. 
+Regnault, H. Weng, Q. Wu, B. A. Bernevig, and J. Yu, ''Moiré frac�onal Chern insulators. II. 
+First-principles calcula�ons and con�nuum models of rhombohedral graphene superla�ces'', 
+Phys. Rev. B 109, 205122 (2024).  
+11. J. Jung, A. M. DaSilva, A. H. MacDonald, and S. Adam, ''Origin of band gaps in graphene on 
+hexagonal boron nitride'', Nat. Commun. 6, 6308 (2015).  
+
+===== PAGE 13 =====
+13 
+ 
+12. L. P. A. Krisna and M. Koshino, ''Moiré phonons in graphene/hexagonal boron nitride moiré 
+superla�ce'', Phys. Rev. B 107, 1–14 (2023).  
+13. Y. Park, Y. Kim, B. L. Chitari, and J. Jung, ''Topological ﬂat bands in rhombohedral tetralayer 
+and mul�layer graphene on hexagonal boron nitride moiré superla�ces'', Phys. Rev. B 108, 
+155406 (2023).  
+14. C. Repellin, Z. Dong, Y.-H. Zhang, and T. Senthil, ''Ferromagne�sm in Narrow Bands of Moiré 
+Superla�ces'', Phys. Rev. Lett. 124, 187601 (2020).  
+15. K. Kolář, D. Waters, J. Folk, M. Yankowitz, and C. Lewandowski, ''Single-gate tracking behavior 
+in ﬂat-band mul�layer graphene devices'', arXiv:2503.10749 (2025).  
+16. D. Waters, A. Okounkova, R. Su, B. Zhou, J. Yao, K. Watanabe, T. Taniguchi, X. Xu, Y. H. Zhang, 
+J. Folk, and M. Yankowitz, ''Chern Insulators at Integer and Frac�onal Filling in Moiré 
+Pentalayer Graphene'', Phys. Rev. X 15, 11045 (2025).  
+17. S. H. Aronson, T. Han, Z. Lu, Y. Yao, K. Watanabe, T. Taniguchi, L. Ju, and R. C. Ashoori, 
+''Displacement ﬁeld-controlled frac�onal Chern insulators and charge density waves in a 
+graphene/hBN moiré superla�ce'', arXiv:2408.11220 (2024).  
+18. Z. Lu, T. Han, Y. Yao, A. P. Reddy, J. Yang, J. Seo, K. Watanabe, T. Taniguchi, L. Fu, and L. Ju, 
+''Frac�onal quantum anomalous Hall eﬀect in mul�layer graphene'', Nature 626, 759–764 
+(2024).  
+19. J. Xie, Z. Huo, X. Lu, Z. Feng, Z. Zhang, W. Wang, Q. Yang, K. Watanabe, T. Taniguchi, K. Liu, Z. 
+Song, X. C. Xie, J. Liu, and X. Lu, ''Tunable frac�onal Chern insulators in rhombohedral 
+graphene superla�ces'', Nat. Mater. 24, 1042–1048 (2025).  
+20. Z. Wang, Q. Liu, X. Han, Z. Li, W. Zhao, Z. Qu, C. Han, K. Watanabe, T. Taniguchi, Z. V. Han, S. 
+Zhou, B. Tong, G. Liu, L. Lu, J. Liu, F. Wu, and J. Lu, ''Electrical switching of Chern insulators in 
+moiré rhombohedral heptalayer graphene'', arXiv:2503.00837 (2025).  
+21. G. Chen, A. L. Sharpe, E. J. Fox, Y.-H. Zhang, S. Wang, L. Jiang, B. Lyu, H. Li, K. Watanabe, T. 
+Taniguchi, Z. Shi, T. Senthil, D. Goldhaber-Gordon, Y. Zhang, and F. Wang, ''Tunable correlated 
+Chern insulator and ferromagne�sm in a moiré superla�ce'', Nature 579, 56–61 (2020).  
+22. Z. Dong, A. S. Patri, and T. Senthil, ''Theory of Quantum Anomalous Hall Phases in Pentalayer 
+Rhombohedral Graphene Moiré Structures'', Phys. Rev. Lett. 133, 206502 (2024).  
+23. B. Zhou, H. Yang, and Y. H. Zhang, ''Frac�onal Quantum Anomalous Hall Eﬀect in 
+Rhombohedral Mul�layer Graphene in the Moiréless Limit'', Phys. Rev. Lett. 133, 206504 
+(2024).  
+24. J. Dong, T. Wang, T. Wang, T. Soejima, M. P. Zaletel, A. Vishwanath, and D. E. Parker, 
+''Anomalous Hall Crystals in Rhombohedral Mul�layer Graphene. I. Interac�on-Driven Chern 
+Bands and Frac�onal Quantum Hall States at Zero Magne�c Field'', Phys. Rev. Lett. 133, 
+206503 (2024).  
+25. T. Soejima, J. Dong, T. Wang, T. Wang, M. P. Zaletel, A. Vishwanath, and D. E. Parker, 
+''Anomalous Hall crystals in rhombohedral mul�layer graphene. II. General mechanism and a 
+minimal model'', Phys. Rev. B 110, 205124 (2024).  
+26. Z. Guo, X. Lu, B. Xie, and J. Liu, ''Frac�onal Chern insulator states in mul�layer graphene 
+moiré superla�ces'', Phys. Rev. B 110, 1–13 (2024).  
+27. J. Yu, J. Herzog-Arbeitman, Y. H. Kwan, N. Regnault, and B. A. Bernevig, ''Moiré Frac�onal 
+Chern Insulators IV: Fluctua�on-Driven Collapse of FCIs in Mul�-Band Exact Diagonaliza�on 
+Calcula�ons on Rhombohedral Graphene'', arXiv:2407.13770 (2024).  
+28. Y. H. Kwan, J. Yu, J. Herzog-Arbeitman, D. K. Efetov, N. Regnault, and B. A. Bernevig, ''Moiré 
+
+===== PAGE 14 =====
+14 
+ 
+Frac�onal Chern Insulators III: Hartree-Fock Phase Diagram, Magic Angle Regime for Chern 
+Insulator States, the Role of the Moiré Poten�al and Goldstone Gaps in Rhombohedral 
+Graphene Superla�ces'', arXiv:2312.11617 (2023).  
+29. E. Arrighi, V. H. Nguyen, M. Di Luca, G. Maﬃone, Y. Hong, L. Farrar, K. Watanabe, T. 
+Taniguchi, D. Mailly, J. C. Charlier, and R. Ribeiro-Palau, ''Non-iden�cal moiré twins in bilayer 
+graphene'', Nat. Commun. 14, 1–7 (2023).  
+30. L. S. Farrar, G. Maﬃone, V.-H. Nguyen, K. Watanabe, T. Taniguchi, J.-C. Charlier, D. Mailly, and 
+R. Ribeiro-Palau, ''Impact of the Angular Alignment on the Crystal Field and Intrinsic Doping of 
+Bilayer Graphene/BN Heterostructures'', Nano Lett. 25, 2236–2241 (2025).  
+31. K. P. Nuckolls and A. Yazdani, ''A microscopic perspec�ve on moiré materials'', Nat. Rev. 
+Mater. 9, 460–480 (2024).  
+32. M. Bocarsly, M. Uzan, I. Roy, S. Grover, J. Xiao, Z. Dong, M. Labendik, A. Uri, M. E. Huber, Y. 
+Myasoedov, K. Watanabe, T. Taniguchi, B. Yan, L. S. Levitov, and E. Zeldov, ''De Haas–van 
+Alphen spectroscopy and magne�c breakdown in moiré graphene'', Science 383, 42–48 
+(2024).  
+33. F. Wu, T. Lovorn, E. Tutuc, and A. H. Macdonald, ''Hubbard Model Physics in Transi�on Metal 
+Dichalcogenide Moiré Bands'', Phys. Rev. Lett. 121, 26402 (2018).  
+34. M. H. Naik and M. Jain, ''Ultraﬂatbands and Shear Solitons in Moiré Paterns of Twisted 
+Bilayer Transi�on Metal Dichalcogenides'', Phys. Rev. Lett. 121, 266401 (2018).  
+35. F. Wu, T. Lovorn, E. Tutuc, I. Mar�n, and A. H. Macdonald, ''Topological Insulators in Twisted 
+Transi�on Metal Dichalcogenide Homobilayers'', Phys. Rev. Lett. 122, 86402 (2019).  
+36. Y. Zhang, T. Liu, and L. Fu, ''Electronic structures, charge transfer, and charge order in twisted 
+transi�on metal dichalcogenide bilayers'', Phys. Rev. B 103, 1–6 (2021).  
+37. C. R. Woods, L. Britnell, A. Eckmann, R. S. Ma, J. C. Lu, H. M. Guo, X. Lin, G. L. Yu, Y. Cao, R. V 
+Gorbachev, A. V Kre�nin, J. Park, L. A. Ponomarenko, M. I. Katsnelson, Y. N. Gornostyrev, K. 
+Watanabe, T. Taniguchi, C. Casiraghi, H.-J. Gao, A. K. Geim, and K. S. Novoselov, 
+''Commensurate–incommensurate transi�on in graphene on hexagonal boron nitride'', Nat. 
+Phys. 10, 451–456 (2014).  
+38. J. Jung, E. Laksono, A. M. Dasilva, A. H. Macdonald, M. Mucha-Kruczyński, and S. Adam, 
+''Moiré band model and band gaps of graphene on hexagonal boron nitride'', Phys. Rev. B 96, 
+1–14 (2017).  
+39. R. Xiao, F. Tasnádi, K. Koepernik, J. W. F. Venderbos, M. Richter, and M. Taut, ''Density 
+func�onal inves�ga�on of rhombohedral stacks of graphene: Topological surface states, 
+nonlinear dielectric response, and bulk limit'', Phys. Rev. B - Condens. Matter Mater. Phys. 84, 
+1–15 (2011).  
+40. A. Finkler, Y. Segev, Y. Myasoedov, M. L. Rappaport, L. Ne’Eman, D. Vasyukov, E. Zeldov, M. E. 
+Huber, J. Mar�n, and A. Yacoby, ''Self-aligned nanoscale SQUID on a �p'', Nano Lett. 10, 
+1046–1049 (2010).  
+41. D. Vasyukov, Y. Anahory, L. Embon, D. Halbertal, J. Cuppens, L. Neeman, A. Finkler, Y. Segev, 
+Y. Myasoedov, M. L. Rappaport, M. E. Huber, and E. Zeldov, ''A scanning superconduc�ng 
+quantum interference device with single electron spin sensi�vity'', Nat. Nanotechnol. 8, 639–
+644 (2013).  
+42. S. Grover, M. Bocarsly, A. Uri, P. Stepanov, G. Di Ba�sta, I. Roy, J. Xiao, A. Y. Meltzer, Y. 
+Myasoedov, K. Pareek, K. Watanabe, T. Taniguchi, B. Yan, A. Stern, E. Berg, D. K. Efetov, and 
+E. Zeldov, ''Chern mosaic and Berry-curvature magne�sm in magic-angle graphene'', Nat. 
+Phys. 18, 885–892 (2022).  
+
+===== PAGE 15 =====
+15 
+ 
+43. Y. Liu, A. Gupta, Y. Choi, Y. Vituri, H. Stoyanov, J. Xiao, Y. Wang, H. Zhou, B. Barick, T. 
+Taniguchi, K. Watanabe, B. Yan, E. Berg, A. F. Young, H. Beidenkopf, and N. Avraham, 
+''Visualizing incommensurate inter-valley coherent states in rhombohedral trilayer 
+graphene'', arXiv:2411.11163 (2024).  
+44. T. Arp, O. Sheekey, H. Zhou, C. L. Tschirhart, C. L. Paterson, H. M. Yoo, L. Holleis, E. Redekop, 
+G. Babikyan, T. Xie, J. Xiao, Y. Vituri, T. Holder, T. Taniguchi, K. Watanabe, M. E. Huber, E. 
+Berg, and A. F. Young, ''Intervalley coherence and intrinsic spin–orbit coupling in 
+rhombohedral trilayer graphene'', Nat. Phys. 20, 1413–1420 (2024).  
+45. Y. Choi, Y. Choi, M. Valen�ni, C. L. Paterson, L. F. W. Holleis, O. I. Sheekey, H. Stoyanov, X. 
+Cheng, T. Taniguchi, K. Watanabe, and A. F. Young, ''Superconduc�vity and quan�zed 
+anomalous Hall eﬀect in rhombohedral graphene'', Nature 639, 342–347 (2025).  
+46. C. Li, Z. Sun, K. Liu, L. Qiao, Y. Wei, C. Zheng, C. Zhang, K. Watanabe, T. Taniguchi, H. Yang, D. 
+Guan, L. Liu, S. Wang, Y. Li, H. Zheng, C. Liu, B. Tong, L. Lu, J. Jia, Z. Shi, J. Liu, G. Chen, T. Li, 
+and X. Liu, ''Tunable Chern Insulators in Moiré-Distant and Moiré-Proximal Rhombohedral 
+Pentalayer Graphene'', arXiv:2505.01767 (2025).  
+47. W. Zhou, J. Ding, J. Hua, L. Zhang, K. Watanabe, T. Taniguchi, W. Zhu, and S. Xu, ''Layer-
+polarized ferromagne�sm in rhombohedral mul�layer graphene'', Nat. Commun. 15, 2597 
+(2024).  
+48. J. Ding, H. Xiang, J. Hua, W. Zhou, N. Liu, L. Zhang, N. Xin, B. Wu, K. Watanabe, T. Taniguchi, Z. 
+Sofer, W. Zhu, and S. Xu, ''Electric-Field Switchable Chirality in Rhombohedral Graphene 
+Chern Insulators Stabilized by Tungsten Diselenide'', Phys. Rev. X 15, 1–10 (2025).  
+49. M. Serlin, C. L. Tschirhart, H. Polshyn, Y. Zhang, J. Zhu, K. Watanabe, T. Taniguchi, L. Balents, 
+and A. F. Young, ''Intrinsic quan�zed anomalous Hall eﬀect in a moiré heterostructure'', 
+Science 367, 900–903 (2020).  
+50. Y. Xie, A. T. Pierce, J. M. Park, D. E. Parker, E. Khalaf, P. Ledwith, Y. Cao, S. H. Lee, S. Chen, P. 
+R. Forrester, K. Watanabe, T. Taniguchi, A. Vishwanath, P. Jarillo-Herrero, and A. Yacoby, 
+''Frac�onal Chern insulators in magic-angle twisted bilayer graphene'', Nature 600, 439–443 
+(2021).  
+51. X. Zhang, W.-P. Han, X.-F. Qiao, Q.-H. Tan, Y.-F. Wang, J. Zhang, and P.-H. Tan, ''Raman 
+characteriza�on of AB- and ABC-stacked few-layer graphene by interlayer shear modes'', 
+Carbon N. Y. 99, 118–122 (2016).  
+52. Y. Li, Y. Rao, K. F. Mak, Y. You, S. Wang, C. R. Dean, and T. F. Heinz, ''Probing symmetry 
+proper�es of few-layer MoS2 and h-BN by op�cal second-harmonic genera�on'', Nano Lett. 
+13, 3329–3333 (2013).  
+53. Y. Shan, Y. Li, D. Huang, Q. Tong, W. Yao, W. T. Liu, and S. Wu, ''Stacking symmetry governed 
+second harmonic genera�on in graphene trilayers'', Sci. Adv. 4, 1–5 (2018).  
+54. Y. Anahory, H. R. Naren, E. O. Lachman, S. Buhbut Sinai, A. Uri, L. Embon, E. Yaakobi, Y. 
+Myasoedov, M. E. Huber, R. Klajn, and E. Zeldov, ''SQUID-on-�p with single-electron spin 
+sensi�vity for high-ﬁeld and ultra-low temperature nanomagne�c imaging'', Nanoscale 12, 
+3174–3182 (2020).  
+55. M. E. Huber, P. A. Neil, R. G. Benson, D. A. Burns, A. M. Corey, C. S. Flynn, Y. Kitaygorodskaya, 
+O. Massihzadeh, J. M. Mar�nis, and G. C. Hilton, ''DC SQUID series array ampliﬁers with 120 
+MHz bandwidth'', IEEE Trans. Appiled Supercond. 11, 1251–1256 (2001).  
+56. A. Finkler, D. Vasyukov, Y. Segev, L. Ne’eman, E. O. Lachman, M. L. Rappaport, Y. Myasoedov, 
+E. Zeldov, and M. E. Huber, ''Scanning superconduc�ng quantum interference device on a �p 
+for magne�c imaging of nanoscale phenomena'', Rev. Sci. Instrum. 83, 073702 (2012).  
+
+===== PAGE 16 =====
+16 
+ 
+57. D. Halbertal, J. Cuppens, M. Ben Shalom, L. Embon, N. Shadmi, Y. Anahory, H. R. Naren, J. 
+Sarkar, A. Uri, Y. Ronen, Y. Myasoedov, L. S. Levitov, E. Joselevich, A. K. Geim, and E. Zeldov, 
+''Nanoscale thermal imaging of dissipa�on in quantum systems'', Nature 539, 407–410 
+(2016).  
+58. A. Y. Meltzer, E. Levin, and E. Zeldov, ''Direct Reconstruc�on of Two-Dimensional Currents in 
+Thin Films from Magne�c-Field Measurements'', Phys. Rev. Appl. 8, 064030 (2017).  
+59. A. E. E. Dubois, D. A. Broadway, A. Stark, M. A. Tschudin, A. J. Healey, S. D. Huber, J.-P. 
+Te�enne, E. Greplova, and P. Male�nsky, ''Untrained Physically Informed Neural Network for 
+Image Reconstruc�on of Magne�c Field Sources'', Phys. Rev. Appl. 18, 064076 (2022).  
+60. J. Jung and A. H. MacDonald, ''Gapped broken symmetry states in ABC-stacked trilayer 
+graphene'', Phys. Rev. B 88, 075408 (2013).  
+61. G. Chen, A. L. Sharpe, P. Gallagher, I. T. Rosen, E. J. Fox, L. Jiang, B. Lyu, H. Li, K. Watanabe, T. 
+Taniguchi, J. Jung, Z. Shi, D. Goldhaber-Gordon, Y. Zhang, and F. Wang, ''Signatures of tunable 
+superconduc�vity in a trilayer graphene moiré superla�ce'', Nature 572, 215–219 (2019).  
+62. S. Chaterjee, T. Wang, E. Berg, and M. P. Zaletel, ''Inter-valley coherent order and isospin 
+ﬂuctua�on mediated superconduc�vity in rhombohedral trilayer graphene'', Nat. Commun. 
+13, 6013 (2022).  
+63. U. Zondiner, A. Rozen, D. Rodan-Legrain, Y. Cao, R. Queiroz, T. Taniguchi, K. Watanabe, Y. 
+Oreg, F. von Oppen, A. Stern, E. Berg, P. Jarillo-Herrero, and S. Ilani, ''Cascade of phase 
+transi�ons and Dirac revivals in magic-angle graphene'', Nature 582, 203–208 (2020).  
+64. Y. Xie, A. T. Pierce, J. M. Park, D. E. Parker, J. Wang, P. Ledwith, Z. Cai, K. Watanabe, T. 
+Taniguchi, E. Khalaf, A. Vishwanath, P. Jarillo-Herrero, and A. Yacoby, ''Strong interac�ons and 
+isospin symmetry breaking in a supermoiré la�ce'', arXiv:2404.01372 (2024).  
+ 
+ 
+
+===== PAGE 17 =====
+17 
+ 
+Methods 
+Device fabrica�on 
+The hBN- encapsulated pentalayer graphene heterostructures were fabricated using a dry-transfer 
+method op�mized for rhombohedral mul�layer graphene, as described in detail in [5]. To dis�nguish  
+rhombohedral from Bernal-stacked regions, we mapped the Raman G peak posi�on both before and 
+a�er stacking [51], as shown in Extended Data Fig. 1. During assembly, we deliberately aligned the 
+crystal axes of the pentalayer graphene with one of the hBN ﬂakes using a mechanical rota�on stage. 
+Naturally occurring straight edges on each ﬂake served as visual guides. To avoid uninten�onal 30° 
+misalignment, we determined the edge chirali�es (zigzag or armchair) of both the hBN and graphene 
+by analyzing the polariza�on dependence of second harmonic genera�on (SHG) in the hBN ﬂakes and 
+in a Bernal-stacked trilayer region on the same graphene crystal [52,53]. 
+Device summary: 
+Devices A and B (𝝃𝝃= 𝟏𝟏): Ti (2 nm) / Au (10 nm) top gate and Ti (2 nm) / Pt (10 nm) botom gate, the 
+top and botom hBN thicknesses are  ≈16.8 nm and 36.6 nm, respec�vely. 𝑛𝑛𝑠𝑠 (𝜈𝜈= 4) for Device A was 
+2.14⋅1012 cm-2 corresponding to alignment angle 𝜃𝜃≈  0.06°, and 2.29 ⋅1012 cm-2 and 𝜃𝜃≈  0.26° for 
+Device B.  
+Devices C and D  (𝝃𝝃= 𝟎𝟎): Ti (2 nm) / Au (10 nm) top g ate and gr aphite botom g ate, with top and 
+botom hBN thicknesses of ≈ 25.3 nm and 27 nm , respec�vely. 𝑛𝑛𝑠𝑠  (𝜈𝜈  = 4)   for the two devices was 
+2.33⋅1012 cm-2 corresponding to 𝜃𝜃≈ 0.29°. 
+Extended Data Fig. 1. Device fabrica�on. a . Op�cal image of the ini�al graphite ﬂake on Si/SiO2 
+substrate for all the devices. The diﬀerent number of graphene layers 1L, 3L, 4L, 5L in the various 
+regions are presented by the diﬀerent shades of purple. b. Raman map of the G peak wavelength of 
+the ﬂake in (a). The diﬀerent stacking regions are marked. Rhombohedral stacking shi�s the G peak to 
+lower wavelengths compared to Bernal. c. Op�cal image of the ﬁnal stack for devices A and B. d. Same 
+as (b) for the ﬁnal stack in (c). e. Same as (c) for devices C and D. f. Same as (d) for the ﬁnal stack in (e). 
+
+
+===== PAGE 18 =====
+18 
+ 
+Transport measurements of R5LG/hBN 
+The transport measurements were performed using standard lock-in techniques and low-noise voltage 
+ampliﬁers with ac bias current 𝐼𝐼𝑎𝑎𝑑𝑑 from 3 nA to 10 nA at 𝑓𝑓= 13.777 Hz under cryogenic temperatures 
+ranging from 300 mK to 4 K. We applied dc voltages to the top and botom gates, 𝑉𝑉𝑡𝑡𝑡𝑡
+𝑑𝑑𝑑𝑑 and 𝑉𝑉𝑏𝑏𝑡𝑡
+𝑑𝑑𝑑𝑑, to set 
+the carrier density  𝑛𝑛= �𝐶𝐶𝑡𝑡𝑡𝑡𝑉𝑉𝑡𝑡𝑡𝑡
+𝑑𝑑𝑑𝑑+ 𝐶𝐶𝑏𝑏𝑡𝑡𝑉𝑉𝑏𝑏𝑡𝑡
+𝑑𝑑𝑑𝑑�/𝑒𝑒 and the displacement ﬁeld 𝐷𝐷= �𝐶𝐶𝑡𝑡𝑡𝑡𝑉𝑉𝑡𝑡𝑡𝑡
+𝑑𝑑𝑑𝑑− 𝐶𝐶𝑏𝑏𝑡𝑡𝑉𝑉𝑏𝑏𝑡𝑡
+𝑑𝑑𝑑𝑑�/
+2𝜀𝜀0, where 𝐶𝐶𝑡𝑡𝑡𝑡 and 𝐶𝐶𝑏𝑏𝑡𝑡 are the top-gate and botom gate capacitance per unit area of the top and 
+botom gates, respec�vely. Extended Data Table 1 summarizes all the condi�ons for diﬀerent transport 
+measurements. 
+Figure Temperature Current 𝑰𝑰𝒂𝒂𝒂𝒂 (nA) Condi�ons 
+Fig. 1a 500 mK 10 𝐵𝐵𝑎𝑎= 0 T 
+Fig. 1b 500 mK 3 𝐵𝐵𝑎𝑎= 50 mT 
+Fig. 1d 𝜉𝜉= 1 500 mK 10 𝜈𝜈= 1.37, 𝐷𝐷= 0.6 V/nm 
+Fig. 1d 𝜉𝜉= 0 300 mK 10 𝜈𝜈= 1.37, 𝐷𝐷= 0.6 V/nm 
+ED Fig. 2a, d 4 K 10 𝐵𝐵𝑎𝑎= 0 T 
+ED Fig. 2b 500 mK 10 𝐵𝐵𝑎𝑎= 0 T 
+ED Fig. 2c 1 K 10 𝐵𝐵𝑎𝑎= 0 T 
+ED Fig. 3a 4 K 10 𝐷𝐷= 0 V/nm 
+ED Fig. 3b 500 mK 10 𝐵𝐵𝑎𝑎= ±0.3 T 
+ED Fig. 3c 300 mK 10 𝐵𝐵𝑎𝑎= ±0.15 T 
+ED Fig. 5a 500 mK 10 𝐵𝐵𝑎𝑎= 0 T 
+ED Fig. 5b 500 mK 5 𝐵𝐵𝑎𝑎= 3 T 
+ED Fig. 5c 500 mK 10 𝐷𝐷= 0 V/nm 
+ED Fig. 5e 500 mK 5 𝐷𝐷= 0.85 V/nm 
+Extended Data Table 1. Summary of transport measurements condi�ons presented in the main text 
+and Methods. 
+Extended Data Fig. 2 summarizes 𝑅𝑅𝑥𝑥𝑥𝑥(𝜈𝜈, 𝐷𝐷) at 𝐵𝐵𝑎𝑎= 0 T of all four studied devices . The overall 𝑅𝑅𝑥𝑥𝑥𝑥 
+maps are consistent across devices with the same 𝜉𝜉, demonstra�ng reproducibility of the observed 
+symmetry-broken states. All devices exhibit similar behavior at |𝐷𝐷| > 0.2 V/nm on the moiré  distant 
+side, but show pronounced diﬀerences on the moiré proximate side. Device A (𝜉𝜉= 1) shows well-
+developed resistance peaks at all integer ﬁllings (𝜈𝜈= 1,2,3,4) even at 𝑇𝑇 = 4 K.  
+To determine the twist angle, we measure Landau fan diagram 𝑅𝑅𝑥𝑥𝑥𝑥� 𝜈𝜈,
+𝜙𝜙
+𝜙𝜙0
+� , where 𝜙𝜙= 𝐵𝐵𝑎𝑎𝐴𝐴= 4𝐵𝐵𝑎𝑎/𝑛𝑛𝑠𝑠 
+is the magne�c ﬂux in moiré unit cell area 𝐴𝐴. Extended Data Fig. 3a presets 𝑅𝑅𝑥𝑥𝑥𝑥� 𝜈𝜈,
+𝜙𝜙
+𝜙𝜙0
+�  at 𝐷𝐷= 0 V/nm 
+in device D along with the ﬁt to the Brown Zak oscilla�ons (dashed lines). We extract 𝐴𝐴 from the ﬁt 
+and calculate the moiré wavelength 𝜆𝜆 and the twist angle 𝜃𝜃: 
+(1)   𝜆𝜆= � 2𝐴𝐴
+√3
+=
+(1 + 𝛿𝛿)𝑎𝑎0
+� 2(1 + 𝛿𝛿)(1 − cos 𝜃𝜃) + 𝛿𝛿2
+ 
+ 
+where 𝑎𝑎0 =  0.246 nm is the graphene la�ce constant and 𝛿𝛿=
+𝑎𝑎𝐵𝐵𝐵𝐵
+𝑎𝑎0
+− 1 =  0.017 is the la�ce 
+mismatch between graphene and hBN. 
+
+===== PAGE 19 =====
+19 
+ 
+Extended Data Fig. 2. Comparison of 𝑹𝑹𝒙𝒙𝒙𝒙 maps of four R5LG/hBN devices. a. 𝑅𝑅𝑥𝑥𝑥𝑥(𝜈𝜈, 𝐷𝐷) map of device 
+A (𝜉𝜉= 1) measured at 𝑇𝑇= 4 K similar to the data in Fig. 1a measured at 𝑇𝑇= 0.5 K.  b. Same as (a) for 
+device D ( 𝜉𝜉= 0), similar to the data in Fig. 1b. c. 𝑅𝑅𝑥𝑥𝑥𝑥(𝜈𝜈, 𝐷𝐷) map of device B ( 𝜉𝜉= 1), used for local 
+magnetometry study in Fig. 3a. d. Same as (c) for device C (𝜉𝜉= 0).  
+Extended Data Figs. 3b,c show the Hall density maps, 𝑛𝑛𝐻𝐻= �𝑒𝑒�
+𝛿𝛿𝑅𝑅𝑥𝑥𝑥𝑥
+𝛿𝛿𝐵𝐵𝑎𝑎
+��
+−1
+, for the two 𝜉𝜉 samples on 
+the electron-doped, moiré-proximate side. In these maps, zero-crossings of 𝑛𝑛𝐻𝐻  indicate band gaps, 
+while divergences with abrupt sign changes mark van Hove singulari�es (vHs) (panel c inset) . We 
+highlight these features with black solid lines (gaps) and white dashed lines (vHs). The number and 
+posi�on of these features provide informa�on about the degeneracy structure of the bands: in the 
+symmetric case (fourfold degeneracy), one expects no gaps and one vHs between 𝜈𝜈= 0 and 4; in a 
+twofold-degenerate system, one expects one gap and two vHs; and in a fully ﬂavor-polarized (onefold) 
+case, three gaps and four vHs should appear. These expecta�ons are consistent with the data. In the 
+𝜉𝜉=  1 device A, only a single vHs is observed at 𝐷𝐷<  0.2 V/nm. As the 𝜈𝜈=  2 gap opens at 𝐷𝐷≈  0.2 
+V/nm, the vHs splits into two, and further splits into four when the 𝜈𝜈=  1 and 3 gaps appear —
+consistent with a transi�on into a onefold symmetry-broken state. 
+In contrast, the 𝜉𝜉= 0 device D exhibits a diﬀerent sequence. A vHs ini�ally appears between 𝜈𝜈= 2 
+and 3 in the symmetric phase. As 𝐷𝐷 increases, it abruptly shi�s to lie between 𝜈𝜈= 1 and 2, coinciding 
+with the opening of the 𝜈𝜈= 2 gap. It then shi�s again to lie between 𝜈𝜈= 0 and 1 as the onefold valley-
+polarized phase emerges. This “replica” evolu�on of vHs and gaps— where the singularity migrates in 
+discrete steps as symmetry-breaking progresses — is reminiscent of behavior seen in non -aligned 
+rhombohedral graphene, where the moiré potential only opens gaps in phases with different spin and 
+valley degeneracies. 
+
+
+===== PAGE 20 =====
+20 
+ 
+Extended Data Fig. 3. Addi�onal transport data on R5LG/hBN. a. Landau fan diagram of 𝑅𝑅𝑥𝑥𝑥𝑥(𝜈𝜈, 𝜙𝜙/𝜙𝜙0) 
+where 𝜙𝜙= 𝐵𝐵𝑎𝑎𝐴𝐴  and 𝐴𝐴= 4/𝑛𝑛𝑠𝑠 , measured in device D at 𝐷𝐷=  0 V/nm. Posi�ons of the horizontal 
+resistance features (dashed lines) are ﬁted to ra�onal ﬂux values 
+𝜙𝜙
+𝜙𝜙0
+= 1/𝑞𝑞, where 𝑞𝑞 is an integer, to 
+extract the moiré unit cell area  𝐴𝐴. b. Hall carrier density map 𝑛𝑛𝐻𝐻(𝜈𝜈, 𝐷𝐷) at 𝐵𝐵𝑎𝑎= ±0.3 T for the 𝜉𝜉= 1 
+device (device A). c. Same as (b), for the 𝜉𝜉= 0 device (device D), measured at 𝐵𝐵𝑎𝑎= ±0.15 T. Inset: 
+cartoon of the 𝑛𝑛𝐻𝐻 evolu�on across a van Hove singularity (vHs dashed white lines in (b) and (c)) and 
+across a gap or Dirac point (solid black lines in (b) and (c)). 
+Local magne�c imaging 
+Indium SOTs were fabricated as described previously [54]. Local magne�c imaging for devices A and B 
+(𝜉𝜉= 1) were performed in wet dilu�on refrigerator at 𝑇𝑇= 20 mK, while magne�c imaging of device C 
+(𝜉𝜉= 0) was carried out in a Helium-3 refrigerator at 𝑇𝑇= 300 mK. The SOT signal was read out using a 
+cryogenic SQUID array ampliﬁer (SSAA) [55,56]. To maintain the scanning height ≈200 nm above the 
+surface of the sample, the SOT was mounted on a quartz tuning fork (Model TB38, HMI Frequency 
+Technology) vibra�ng at its resonance frequency ~33 kHz which acts as a force sensor [57]. dc voltages 
+where applied to the top and botom gates, 𝑉𝑉𝑡𝑡𝑡𝑡
+𝑑𝑑𝑑𝑑  and 𝑉𝑉𝑏𝑏𝑡𝑡
+𝑑𝑑𝑑𝑑 , to set 𝑛𝑛  and 𝐷𝐷 ,  a l o n g  w i t h  a  small ac 
+modula�on to one of the gates, 𝑉𝑉𝑡𝑡𝑡𝑡
+𝑎𝑎𝑑𝑑 or 𝑉𝑉𝑏𝑏𝑡𝑡
+𝑎𝑎𝑑𝑑, at frequencies of about 1 kHz. This modulates the carrier 
+density and displacement ﬁeld: 𝑛𝑛𝑎𝑎𝑑𝑑= �𝐶𝐶𝑡𝑡𝑡𝑡𝑉𝑉𝑡𝑡𝑡𝑡
+𝑎𝑎𝑑𝑑+ 𝐶𝐶𝑏𝑏𝑡𝑡𝑉𝑉𝑏𝑏𝑡𝑡
+𝑎𝑎𝑑𝑑�/𝑒𝑒 , 𝐷𝐷𝑎𝑎𝑑𝑑= �𝐶𝐶𝑡𝑡𝑡𝑡𝑉𝑉𝑡𝑡𝑡𝑡
+𝑎𝑎𝑑𝑑− 𝐶𝐶𝑏𝑏𝑡𝑡𝑉𝑉𝑏𝑏𝑡𝑡
+𝑎𝑎𝑑𝑑�/2𝜀𝜀0 , and 
+the corresponding ac magne�c ﬁeld 𝐵𝐵𝑧𝑧𝑎𝑎𝑑𝑑 is measured by the SOT using a lock-in ampliﬁer. 
+Single-point local magne�c measurements shown in Figs. 3a,d were performed by ﬁxing the spa�al 
+posi�on of the SOT, varying the dc voltages applied to the gates 𝑉𝑉𝑡𝑡𝑡𝑡
+𝑑𝑑𝑑𝑑  and 𝑉𝑉𝑏𝑏𝑡𝑡
+𝑑𝑑𝑑𝑑 , and measuring the 
+corresponding 𝐵𝐵𝑧𝑧𝑎𝑎𝑑𝑑. Figure 3a and Extended Data Figs. 4a-c were measured at 𝐵𝐵𝑎𝑎= 77 mT, 𝑉𝑉𝑏𝑏𝑡𝑡
+𝑎𝑎𝑑𝑑= 100 
+mVrms (𝑛𝑛𝑎𝑎𝑑𝑑= 4.53⋅1010 cm-2) and Fig. 3d and Extended Data Fig. 4b were measured at 𝐵𝐵𝑎𝑎=10 mT, 
+𝑉𝑉𝑏𝑏𝑡𝑡
+𝑎𝑎𝑑𝑑= 20 mVrms (𝑛𝑛𝑎𝑎𝑑𝑑= 1.23⋅1010 cm-2).  
+Extended Data Figs. 4d,e show two-dimensional 𝐵𝐵𝑧𝑧𝑎𝑎𝑑𝑑(𝑥𝑥, 𝑦𝑦) map and corresponding reconstruc�on of 
+the diﬀeren�al magne�za�on 𝑚𝑚𝑧𝑧(𝑥𝑥, 𝑦𝑦) using a numerical inversion algorithm  where instead of the 
+Tikhonov regularized Fourier transform-based approach [58] ,we employ a numerical method based 
+on a deep neural network, similar to  [59]. The magnitude of the atained 𝑚𝑚𝑧𝑧𝑎𝑎𝑑𝑑=  𝑑𝑑𝑀𝑀𝑧𝑧/𝑑𝑑𝑛𝑛 =
+ 𝑀𝑀𝑧𝑧𝑎𝑎𝑑𝑑/𝑛𝑛𝑎𝑎𝑑𝑑 of up to 70 µB/e reﬂects a large magne�za�on change across a magne�c transi�on (magenta 
+circle in Extended Data Figs. 4b), whereas in other magne�cally ordered states in the phase diagram 
+the 𝑚𝑚𝑧𝑧𝑎𝑎𝑑𝑑 is ~5 to 1 5 µB/e, consistent with orbital magne�za�on. This procedure forms the basis for 
+iden�fying magne�c regions and construc�ng the schema�c phase diagrams shown in Fig. 3b and 3e. 
+
+
+===== PAGE 21 =====
+21 
+ 
+ 
+Extended Data Fig. 4.  Addi�onal local magne�za�on data. a. Full range 𝐵𝐵𝑧𝑧𝑎𝑎𝑑𝑑(𝜈𝜈, 𝐷𝐷)  map in 𝜉𝜉=  1 
+device B acquired at the loca�on marked by orange cross in (f).  b. 𝐵𝐵𝑧𝑧𝑎𝑎𝑑𝑑(𝜈𝜈, 𝐷𝐷) map in 𝜉𝜉= 0 device C 
+acquired at the loca�on marked by magenta crosses in (d) and  (g). c. 𝐵𝐵𝑧𝑧𝑎𝑎𝑑𝑑(𝜈𝜈, 𝐷𝐷)  in 𝜉𝜉=  1 device A 
+acquired at the cyan cross in (f) . d. Spa�al 𝐵𝐵𝑧𝑧𝑎𝑎𝑑𝑑(𝑥𝑥, 𝑦𝑦) map of device B in the area marked by dashed 
+rectangle in (g) measured at (𝜈𝜈, 𝐷𝐷) marked by the magenta circle in (b). e. Diﬀeren�al magne�za�on 
+𝑚𝑚𝑧𝑧(𝑥𝑥, 𝑦𝑦) numerically reconstructed from (d). f,g, Op�cal images of devices A and B (f) and C and D (g).  
+Transport measurements on a non-aligned rhombohedral pentalayer graphene device 
+To inves�gate the eﬀect of the moiré superla�ce poten�al, we also perform ed transport 
+measurements on a non -aligned R5LG device. Extended Data Fig. 5a shows 𝑅𝑅𝑥𝑥𝑥𝑥(𝑛𝑛, 𝐷𝐷) measured at 
+𝐵𝐵𝑎𝑎= 0 T. At 𝑛𝑛= 0, we observe correlated insulator from 𝐷𝐷= 0 to 0.1 V/nm and band insulator at 𝐷𝐷> 
+0.2 V/nm. Addi�onally, the 𝑅𝑅𝑥𝑥𝑥𝑥  map is separated into a few regions by weak resistance peaks. To 
+unravel the possible symmetry breaking phases, we acquire 𝑅𝑅𝑥𝑥𝑥𝑥(𝑛𝑛, 𝐷𝐷) and 𝑅𝑅𝑥𝑥𝑥𝑥(𝑛𝑛, 𝐷𝐷) at 𝐵𝐵𝑎𝑎= 3 T, and 
+derive the diﬀeren�al conductance 𝑑𝑑𝜎𝜎𝑥𝑥𝑥𝑥/𝑑𝑑𝑛𝑛  (Extended Data Fig. 5b), where 𝜎𝜎𝑥𝑥𝑥𝑥=
+𝑅𝑅𝑥𝑥𝑥𝑥
+𝑅𝑅𝑥𝑥𝑥𝑥2 +𝑅𝑅𝑥𝑥𝑥𝑥2   is the 
+transverse conductance. Shubnikov-de Haas oscilla�ons with diﬀerent frequencies are clearly seen in 
+diﬀerent regions in the 𝑛𝑛-𝐷𝐷 plane. By measuring Landau fan diagram at 𝐷𝐷= 0 V/nm (Extended Data 
+Fig. 5c) and 𝐷𝐷=  0.85 V/nm (Extended Data Fig. 5e) , we  perform Fourier transform of 𝑅𝑅𝑥𝑥𝑥𝑥(1/𝐵𝐵𝑎𝑎) 
+(Extended Data Figs. 5d and f). At 𝐷𝐷= 0 V/nm, the Fermi surface is simply connected and four-fold 
+degenerate, with FFT peaks at 
+𝑓𝑓
+𝑛𝑛= 0.25 ℎ/𝑒𝑒, for 𝑛𝑛> 1⋅1012 cm-2. In contrast, at 𝐷𝐷= 0.85 V/nm, the 
+Fermi surface exhibits a 1-fold degenerate quarter-metal state (
+𝑓𝑓
+𝑛𝑛= 1 ℎ/𝑒𝑒) for 𝑛𝑛< 1.5⋅1012 cm-2, and 
+transi�ons to a 2-fold degenerate half-metal state (
+𝑓𝑓
+𝑛𝑛= 0.5 ℎ/𝑒𝑒) at higher densi�es. The corresponding 
+phase diagram is sketched schema�cally in Fig. 3e inset and is similar to the one obtained in [6]. 
+Compared to the hBN-aligned devices, the 𝜉𝜉=0 devices show a similar symmetry breaking sequence 
+on the moiré proximate side, indica�ng a perturba�ve role of the superla�ce poten�al, while the 𝜉𝜉= 
+1 devices show a much stronger eﬀect with fundamentally diﬀerent phases. 
+
+
+===== PAGE 22 =====
+22 
+ 
+Extended Data Fig. 5.  Transport data on non -aligned R5LG . a. 𝑅𝑅𝑥𝑥𝑥𝑥(𝑛𝑛, 𝐷𝐷)  map at 𝐵𝐵𝑎𝑎=  0 T. b. 
+𝑑𝑑𝜎𝜎𝑥𝑥𝑥𝑥
+𝑑𝑑𝑛𝑛(𝑛𝑛, 𝐷𝐷)  map at 𝐵𝐵𝑎𝑎=  3 T, showing Shubnikov -de Haas oscilla�ons.  c. Landau fan diagram of 
+𝑅𝑅𝑥𝑥𝑥𝑥(𝑛𝑛, 𝐵𝐵𝑎𝑎) at 𝐷𝐷= 0 V/nm. d. Fast Fourier transform (FFT) spectrum of 𝑅𝑅𝑥𝑥𝑥𝑥(1/𝐵𝐵𝑎𝑎) as a func�on of 𝑛𝑛, 
+with normalized frequency 𝑓𝑓/𝑛𝑛 shown in units of ℎ/𝑒𝑒, calculated from the data in (c) over 𝐵𝐵𝑎𝑎 range 
+[1 𝑇𝑇, 4 𝑇𝑇]. e. Same as (c) at 𝐷𝐷= 0.85 V/nm. f. Same as (d) calculated from the data in (e) over the 𝐵𝐵𝑎𝑎 
+range [1 𝑇𝑇, 6 𝑇𝑇]. 
+Con�nuum model 
+Modelling RMG/hBN requires nearly a dozen parameters that are diﬃcult to constrain independently. 
+To avoid over-ﬁ�ng, we use models whose quan�ta�ve validity has been established in experimental 
+studies of simpler rhombohedral systems. Explicitly, we model RMG using �ght-binding models from 
+non-moiré R4LG [2,5], hBN tunneling parameters from the weakly interac�ng moiré system R2LG/hBN  
+[32], and Stoner models validated in non-moiré R3 LG [3]. To model M-layer Rhombohedral graphene  
+[1,60] we use models from  [2,5] (see also  [3,13,61,62]). We use a graphene la�ce 𝒂𝒂𝟏𝟏 =  (1, 0)𝑎𝑎,
+𝒂𝒂𝟐𝟐 =  (1/2, √3/2)𝑎𝑎 , with 𝑎𝑎 ≈  2.46 Å . We consider orbitals at 𝒓𝒓𝐴𝐴,𝑙𝑙= � 0,
+𝑙𝑙−1
+√3 𝑎𝑎, 𝑙𝑙𝑑𝑑� , 𝒓𝒓𝐵𝐵,𝑙𝑙=
+� 0,
+𝑙𝑙
+√3 𝑎𝑎, 𝑙𝑙𝑑𝑑� , where 𝑙𝑙𝑑𝑑≈  3.4 Å is the interlayer spacing. We use an orbital basis |𝜎𝜎, 𝑙𝑙⟩ with subla�ce 
+𝜎𝜎 =  {𝐴𝐴, 𝐵𝐵} and layer 𝑙𝑙 = {1, . . . , 5}. The corresponding �ght-binding model is a block matrix in layer 
+space 
+
+
+===== PAGE 23 =====
+23 
+ 
+(2)   ℎ𝑅𝑅5𝐺𝐺=
+⎣
+⎢
+⎢
+⎢
+⎢
+⎡𝑇𝑇0 𝑇𝑇1 𝑇𝑇2 0 0
+𝑇𝑇1
+† 𝑇𝑇0 𝑇𝑇1 𝑇𝑇2 0
+𝑇𝑇2
+† 𝑇𝑇1
+† 𝑇𝑇0 𝑇𝑇1 𝑇𝑇2
+0 𝑇𝑇2
+† 𝑇𝑇1
+† 𝑇𝑇0 𝑇𝑇1
+0 0 𝑇𝑇2
+† 𝑇𝑇1
+† 𝑇𝑇0⎦
+⎥
+⎥
+⎥
+⎥
+⎤
++ ℎΔ, 
+ 
+where the T’s are matrices in subla�ce space 
+(3) 
+𝑇𝑇0(𝑘𝑘) = � 0 −𝑡𝑡0𝑓𝑓𝒌𝒌
+−𝑡𝑡0𝑓𝑓𝒌𝒌� 0 � , 𝑇𝑇1(𝑘𝑘) = � −𝑡𝑡4𝑓𝑓𝒌𝒌−𝑡𝑡3𝑓𝑓𝒌𝒌�
+𝑡𝑡1 −𝑡𝑡4𝑓𝑓𝒌𝒌
+� , 𝑇𝑇2(𝑘𝑘) = � 0 𝑡𝑡2
+2
+0 0
+� , 𝑓𝑓𝒌𝒌
+= � 𝑒𝑒𝑖𝑖𝒌𝒌⋅𝛿𝛿𝑛𝑛
+2
+𝑛𝑛=0
+. 
+ 
+Here we used nearest neighbor vectors 𝛿𝛿𝑛𝑛 =  𝑅𝑅𝑛𝑛2𝜋𝜋/3  (0,
+1
+√3 𝑎𝑎)  for 𝑛𝑛 =  0, 1, 2  with 𝑅𝑅𝜃𝜃  the 
+counterclockwise rota�on matrix by angle 𝜃𝜃. Finally, the displacement ﬁeld and interlayer poten�als 
+are modelled by a diagonal matrix 
+(4) ℎ𝜎𝜎𝑙𝑙,𝜎𝜎′𝑙𝑙′
+Δ = 𝛿𝛿𝜎𝜎𝑙𝑙,𝜎𝜎′𝑙𝑙′ �𝐃𝐃𝑙𝑙+ δ1�1 − 𝛿𝛿𝜎𝜎𝑙𝑙,𝐴𝐴1 − 𝛿𝛿𝜎𝜎𝑙𝑙,𝐵𝐵5 ��,  
+(5) 𝐃𝐃𝑙𝑙= Δ(1,1/2,0, −1/2, −1) + 𝛿𝛿2(1, −1, −1, −1,1).  
+The 𝛿𝛿1  t e r m  c a p t u r e s  a  s u r f a c e  c h a r g e  t h a t  f o r m s  o n  t h e  “unpaired” 𝐴𝐴1  and 𝐵𝐵5  sites and 𝛿𝛿2  is an 
+constant internal screening poten�al [2] (see [15] for an alterna�ve approach). See Extended Data 
+Table 2 for parameter values. 
+The la�ce for hBN is 𝒂𝒂𝚤𝚤� = 𝑀𝑀𝑅𝑅𝜃𝜃𝒂𝒂𝑖𝑖 where 𝑀𝑀= (1 + 𝜖𝜖)𝐼𝐼 is a dila�on where 𝜖𝜖 ≈  0.017 and 𝑅𝑅𝜃𝜃 is the 
+counterclockwise rota�on matrix by twist angle 𝜃𝜃. In the vicinity of its K-point, hBN is modelled by a 
+constant Hamiltonian ℎℎ𝐵𝐵𝐵𝐵 =  𝑑𝑑𝑑𝑑𝑎𝑎𝑑𝑑 (𝑉𝑉𝐵𝐵, 𝑉𝑉𝐵𝐵)  in the subla�ce basis. We take  𝑉𝑉𝐵𝐵 =  3.34 𝑒𝑒𝑉𝑉  and 
+𝑉𝑉𝐵𝐵 =  −1.4 𝑒𝑒𝑉𝑉  [9]. 
+The RMG/hBN moiré la�ce is 𝑹𝑹𝑖𝑖= (𝐼𝐼− 𝑅𝑅−1𝑀𝑀−1)𝒂𝒂𝑖𝑖 , with period 𝐿𝐿𝑀𝑀  and angle 𝜙𝜙  between 𝑹𝑹1  and 
+𝒂𝒂1 of 
+(6) 𝐿𝐿𝑀𝑀= 1 + 𝜖𝜖
+� 𝜖𝜖2 + 2(1 + 𝜖𝜖)(1 − 𝑐𝑐𝑐𝑐𝑐𝑐𝜃𝜃)
+, tan 𝜙𝜙= − 𝑐𝑐𝑑𝑑𝑛𝑛𝜃𝜃
+1 + 𝜖𝜖− 𝑐𝑐𝑐𝑐𝑐𝑐𝜃𝜃,  
+Let 𝒈𝒈𝑖𝑖⋅ 𝑹𝑹𝑗𝑗= 2𝜋𝜋𝛿𝛿𝑖𝑖𝑗𝑗 be the corresponding moiré reciprocal la�ce. Geometrically, we consider hBN on 
+layer 𝑙𝑙= 0  underneath layer 𝑙𝑙= 1  of R5 LG. There are two op�ons for the subla�ce alignment, 
+labelled by 𝜉𝜉. When 𝜉𝜉= 0, then (𝐵𝐵, 𝑁𝑁) are aligned directly underneath the (𝐴𝐴1, 𝐵𝐵1) carbon atoms in 
+the AA region of the moiré unit cell; for 𝜉𝜉= 1 , (𝑁𝑁, 𝐵𝐵) are underneath (𝐴𝐴1, 𝐵𝐵1) in AA. 
+For the moiré con�nuum model  [9,32] we take a basis |𝒌𝒌,𝜎𝜎, 𝑙𝑙, 𝜏𝜏, 𝑐𝑐⟩  where  𝑙𝑙∈ {0,1, … ,5}  , 𝜏𝜏=
+{𝐾𝐾, 𝐾𝐾′}  is valley, 𝑐𝑐 =  {↑, ↓}  is spin, and 𝒌𝒌  is in the moiré Brillouin zone. In the (𝐾𝐾, ↑)  sector, the 
+con�nuum model is 
+(7) ℎ𝐾𝐾↑
+(𝜉𝜉) = �𝜎𝜎𝑥𝑥
+𝜉𝜉ℎ� ℎ𝐵𝐵𝐵𝐵𝜎𝜎𝑥𝑥
+𝜉𝜉  𝑇𝑇� (𝜉𝜉)
+�𝑇𝑇� (𝜉𝜉)�
+†
+ℎ� 𝑅𝑅5𝐺𝐺(𝒌𝒌)
+�, 
+ 
+Where 𝜉𝜉= 0,1 and 𝜎𝜎𝑥𝑥 is the Pauli matrix. The tunneling is en�rely speciﬁed by the 2x2 block between 
+𝑙𝑙= 0 and 1 
+(8) 𝑇𝑇(𝜉𝜉)(𝒓𝒓) = 𝑇𝑇0
+(𝜉𝜉) + 𝑇𝑇1
+(𝜉𝜉)𝑒𝑒𝑖𝑖𝒈𝒈1⋅𝒓𝒓+ 𝑇𝑇2
+(𝜉𝜉)𝑒𝑒𝑖𝑖(𝒈𝒈1+𝒈𝒈2)⋅𝒓𝒓,  
+where 
+
+===== PAGE 24 =====
+24 
+ 
+(9) 𝑇𝑇𝑛𝑛
+(𝜉𝜉) = 𝜎𝜎𝑥𝑥
+𝜉𝜉�𝑡𝑡𝐵𝐵𝐵𝐵0
+0 𝑡𝑡𝐵𝐵𝐵𝐵
+� 𝜎𝜎𝑥𝑥
+𝜉𝜉�𝜅𝜅ℎ𝐵𝐵𝐵𝐵𝜔𝜔𝑛𝑛
+𝜔𝜔−𝑛𝑛 𝜅𝜅ℎ𝐵𝐵𝐵𝐵
+�,  
+with 𝜔𝜔= 𝑒𝑒−𝑖𝑖2𝜋𝜋/3  is the third root of unity. Following [32], we use 𝑟𝑟𝐵𝐵𝐵𝐵= 𝑡𝑡𝐵𝐵𝐵𝐵/𝑡𝑡𝐵𝐵𝐵𝐵 , the ra�o of 
+nitrogen-carbon tunneling to boron -carbon tunneling, as well as 𝜅𝜅ℎ𝐵𝐵𝐵𝐵∈ [0,1] . The later reduces 
+tunneling in the AA region, phenomenologically accoun�ng for the shrinking of the AA regions under 
+la�ce relaxa�on. As usual, the K ′ v a l l e y  i s  d e ﬁ n e d  b y  t h e  a c � o n  o f  � m e-reversal and spin ↓ is 
+determined by 𝑆𝑆𝑆𝑆(2) spin symmetry. All parameters are given in Extended Data Table 2. 
+𝑡𝑡0 𝑡𝑡1 𝑡𝑡2 𝑡𝑡3 𝑡𝑡4 𝛿𝛿1 𝛿𝛿2 𝑡𝑡𝐵𝐵𝐵𝐵 𝑟𝑟𝐵𝐵𝐵𝐵 𝜅𝜅ℎ𝐵𝐵𝐵𝐵 
+3100 380 -15 -290 -141 10.5 2 144 0.5 0.5 
+Extended Data Table 2. Parameters for the R5LG/hBN moiré model. All entries are given in meV, except 
+for the dimensionless 𝑟𝑟𝐵𝐵𝐵𝐵 and 𝜅𝜅ℎ𝐵𝐵𝐵𝐵. 
+Stoner model  
+The large density of states at vHs of the conduc�on band under displacement ﬁeld give rise to Stoner 
+ferromagne�sm. To capture this, we follow an approach that has been successfully applied to R3LG  
+[3], as well as to twisted bilayer graphene [63] and twisted trilayer supermoiré systems [64]. 
+Our star�ng point is the interac�ng con�nuum model in the band basis: 
+(10) 𝐻𝐻� = � (𝜖𝜖𝒌𝒌𝛼𝛼− 𝜇𝜇)𝑐𝑐̂𝒌𝒌𝑏𝑏𝛼𝛼
+† 𝑐𝑐̂𝒌𝒌𝑏𝑏𝛼𝛼 
+𝒌𝒌,𝑏𝑏,𝛼𝛼
++ 1
+2 ∫ 𝑑𝑑𝒓𝒓𝑑𝑑𝒓𝒓′ 𝑉𝑉(𝒓𝒓− 𝒓𝒓′) ∶ 𝜌𝜌�(𝒓𝒓)𝜌𝜌�(𝒓𝒓′) ∶  
+where 𝑐𝑐̂𝒌𝒌𝑏𝑏𝛼𝛼
+†  creates a fermion in band 𝑏𝑏 with ﬂavor 𝛼𝛼 at point 𝒌𝒌 in the mBZ, 𝜖𝜖𝒌𝒌𝑏𝑏𝛼𝛼 is the corresponding 
+single-par�cle energy, 𝜇𝜇 is a chemical poten�al, 𝜌𝜌�(𝒓𝒓) is the density at 𝒓𝒓 from all ﬂavors, 𝑉𝑉 represents 
+density-density interac�ons, and normal ordering :: is with respect to charge neutrality. 
+Following [63], we consider a Stoner model with three simplifying assump�ons: (𝐴𝐴1)  contact 
+interac�ons with (𝐴𝐴2)  trivial interac�on matrix elements and (𝐴𝐴3)  meanﬁeld theory. From (𝐴𝐴1) , 
+interac�ons must be strictly ﬂavor-oﬀ-diagonal (so the Fock term exactly vanishes). As the form factors 
+are trivial by (𝐴𝐴2), and the interac�on matrix elements are 𝒒𝒒-independent due to contact interac�ons, 
+the 𝒌𝒌-dependence is irrelevant. The problem is therefore totally speciﬁed by the density of states of 
+each ﬂavor, and  Slater determinants |𝚿𝚿𝑀𝑀𝑀𝑀({𝑛𝑛𝛼𝛼})⟩  are speciﬁed by the density 𝑛𝑛𝛼𝛼  in each ﬂavor 𝛼𝛼 .  
+Under interac�ons, the bands of this model may shi� up and down rigidly, producing ferromagne�sm. 
+Within-band deforma�ons - ubiquitous in such strongly interac�ng systems - are forbidden here. 
+Under these assump�ons, the grand poten�al per unit area is 
+(11) 
+Φ𝑀𝑀𝑀𝑀
+𝐴𝐴= � 𝐸𝐸(𝑛𝑛𝛼𝛼) + 𝐴𝐴𝑢𝑢𝑑𝑑
+2 � 𝑆𝑆𝛼𝛼𝛼𝛼𝑛𝑛𝛼𝛼𝑛𝑛𝛼𝛼
+𝛼𝛼≠𝛼𝛼𝛼𝛼
+,  
+where the density and kine�c energy 
+(12) 𝑛𝑛𝛼𝛼= � 𝜌𝜌𝛼𝛼(𝐸𝐸)𝑑𝑑𝐸𝐸,
+𝜇𝜇(𝑛𝑛𝛼𝛼)
+0
+ 𝐸𝐸(𝑛𝑛𝛼𝛼) = � 𝜀𝜀𝜌𝜌𝛼𝛼(𝐸𝐸)𝑑𝑑𝐸𝐸
+𝜇𝜇(𝑛𝑛𝛼𝛼)
+0
+ 
+ 
+are determined from the density of states 
+(13) 𝜌𝜌𝛼𝛼(𝐸𝐸) = 1
+𝑁𝑁� 𝛿𝛿(𝜀𝜀− 𝜀𝜀𝒌𝒌𝑏𝑏𝛼𝛼)
+𝒌𝒌,𝑏𝑏
+.  
+
+===== PAGE 25 =====
+25 
+ 
+Here 𝐴𝐴𝑢𝑢𝑑𝑑= √3
+2 𝑎𝑎2 is the graphene unit cell area, 𝑁𝑁 is the number of unit cells and 𝐴𝐴 =  𝑁𝑁𝐴𝐴𝑢𝑢𝑑𝑑. Due to 
+𝑆𝑆𝑆𝑆(2)  spin and 𝑆𝑆(1)  v a l l e y  s y m m e t r y ,  t h e  d e n s i t y  o f  s t a t e s  i s  i d e n � c a l  i n  e a c h  ﬂ a v o r ,  w h e r e u p o n  
+ﬂavor-isotropic interac�ons 𝑆𝑆𝛼𝛼𝛼𝛼 =  𝑆𝑆(1 −  𝛿𝛿𝛼𝛼𝛼𝛼)  would give 𝑆𝑆𝑆𝑆(4)  symmetry. Experiments (and 
+more sophis�cated theory) indicate that increasing density ﬁrst breaks spin symmetry then valley 
+symmetry. To reproduce this phenomenology we add a Hund’s term 𝐽𝐽 [3] to get an interac�on term 
+(14) 
+𝐴𝐴𝑢𝑢𝑑𝑑
+2 � 𝑆𝑆𝑛𝑛𝛼𝛼𝑛𝑛𝛼𝛼
+𝛼𝛼≠𝛼𝛼
+− 𝐽𝐽𝐴𝐴𝑢𝑢𝑑𝑑(𝑛𝑛1 − 𝑛𝑛3)(𝑛𝑛2 − 𝑛𝑛4),  
+where 𝛼𝛼, 𝛽𝛽= {1,2,3,4} = {𝐾𝐾↑,𝐾𝐾′↑, 𝐾𝐾↓, 𝐾𝐾′↓}. At each 𝜇𝜇, the ground state is easily found from the grand 
+poten�al minima at 
+(15) 0 = 𝑑𝑑
+𝑑𝑑𝑛𝑛𝛼𝛼
+Φ𝑀𝑀𝑀𝑀
+𝐴𝐴= 𝜇𝜇𝛼𝛼(𝑛𝑛𝛼𝛼) + 𝐴𝐴𝑢𝑢𝑑𝑑� 𝑆𝑆𝛼𝛼𝛼𝛼𝑛𝑛𝛼𝛼− 𝜇𝜇
+𝛼𝛼≠𝛼𝛼
+,  
+where 𝜇𝜇𝛼𝛼(𝑛𝑛𝛼𝛼) =
+𝑑𝑑𝑑𝑑(𝑛𝑛𝛼𝛼)
+𝑑𝑑𝑛𝑛𝛼𝛼
+ . We take iden�cal parameters to those used in non -moiré R3 LG: 𝑆𝑆=
+15 𝑒𝑒𝑉𝑉, 𝐽𝐽 = 4.5 𝑒𝑒𝑉𝑉  [3]. This leads to the Hund’s coupling  𝐽𝐽𝐻𝐻= 𝐽𝐽⋅ 𝐴𝐴𝑢𝑢𝑑𝑑= 2.4 × 10−12 𝑚𝑚𝑒𝑒𝑉𝑉⋅ 𝑐𝑐𝑚𝑚−2 , 
+comparable to the value derived in  [5]. 
+Numerically, we restrict to the lowest seven conduc�on bands and use 64 ×  64 𝑘𝑘-points per valley 
+to resolve vHs . We report the density in units of moiré ﬁlling, e.g. 𝜈𝜈 =  1  corresponds to 𝑛𝑛 ≈
+ 0.64 ×  10−12 𝑐𝑐𝑚𝑚−2 at 𝜃𝜃= 0.30. To reliably ﬁnd the global minima, we use at least 10 ini�al states 
+for each minimiza�on. 
+Calcula�on of orbital magne�za�on 
+We compute the orbital magne�za�on 𝑀𝑀(𝑛𝑛) as a func�on of carrier density using an approximate 
+method, since no prac�cal formula exists for interac�ng systems. Our approach combines the single-
+par�cle orbital magne�za�on calcula�on with ﬂavor-resolved densi�es obtained from the Stoner 
+model. A�er calcula�ng the occupa�on 𝑛𝑛𝛼𝛼  of each ﬂavor, we approximate the total magne�za�on 
+𝑀𝑀(𝑛𝑛) at a given total density 𝑛𝑛= ∑ 𝑛𝑛𝛼𝛼𝛼𝛼  by  
+(16) 𝑀𝑀(𝑛𝑛) = � 𝜏𝜏𝛼𝛼𝑀𝑀� (𝑛𝑛𝛼𝛼(𝜇𝜇𝛼𝛼)) + 𝑐𝑐𝛼𝛼𝜇𝜇𝐵𝐵
+𝛼𝛼
+,  
+where 𝜏𝜏𝛼𝛼 =  ±1  is valley, 𝑐𝑐𝛼𝛼= ±1  is spin, 𝜇𝜇𝐵𝐵  is the Bohr magneton, and 𝑀𝑀� (𝜇𝜇𝛼𝛼) = 𝑀𝑀𝑆𝑆𝑆𝑆(𝜇𝜇𝛼𝛼) −
+𝑀𝑀𝑟𝑟𝑟𝑟𝑓𝑓(𝜇𝜇𝛼𝛼). Here the single-par�cle orbital magne�za�on is 
+(17) 𝑀𝑀𝑆𝑆𝑆𝑆(𝜇𝜇𝛼𝛼) = 𝑒𝑒
+ℏ 𝜀𝜀𝑖𝑖𝑗𝑗𝑧𝑧� ∫ 𝑑𝑑2𝒌𝒌
+(2𝜋𝜋)2 𝑓𝑓(𝜀𝜀𝒌𝒌𝑏𝑏− 𝜇𝜇𝛼𝛼) × ⟨𝜕𝜕𝑘𝑘𝑖𝑖𝑢𝑢𝒌𝒌𝑏𝑏𝛼𝛼|ℎ𝒌𝒌𝛼𝛼+ 𝜀𝜀𝒌𝒌𝑏𝑏𝛼𝛼− 2𝜇𝜇𝛼𝛼|𝜕𝜕𝑘𝑘𝑗𝑗𝑢𝑢𝒌𝒌𝑏𝑏𝛼𝛼⟩
+𝑏𝑏
+,   
+where 𝑓𝑓 is the 𝑇𝑇 =  0 Fermi factor, 𝑢𝑢𝒌𝒌𝑏𝑏𝛼𝛼 is the periodic part of the Bloch wavefunc�on, ℎ is the single-
+par�cle Hamiltonian for ﬂavor 𝛼𝛼 , and 𝑑𝑑, 𝑗𝑗∈ {𝑥𝑥, 𝑦𝑦}  are spa�al indices with an implicit sum. Finally, 
+𝑀𝑀𝑟𝑟𝑟𝑟𝑓𝑓(𝜇𝜇𝛼𝛼) is chosen to be an 𝛼𝛼-independent linear func�on of 𝜇𝜇𝛼𝛼 so that 𝑀𝑀(𝑛𝑛) is zero within the gap 
+at charge neutrality. The chosen “reference subtrac�on” corresponds to the orbital magne�za�on 
+generated by moving the valence bands of the other ﬂavors down by 𝜇𝜇𝛼𝛼. Given the magne�za�on 
+𝑀𝑀(𝑛𝑛), we compute 𝑑𝑑𝑀𝑀/𝑑𝑑𝑛𝑛, which is show in Figs. 3c,f. 
+ 
+ 
+
+===== PAGE 26 =====
+26 
+ 
+Single par�cle hBN-moiré parameters 
+To highlight the importance of using accurate hBN moiré parameters— speciﬁcally 𝑟𝑟𝐵𝐵𝐵𝐵 and 𝜅𝜅ℎ𝐵𝐵𝐵𝐵— we 
+compare calculated DOS maps for both alignment orienta�ons 𝜉𝜉, using all four combina�ons of 𝑟𝑟𝐵𝐵𝐵𝐵= 
+0.5, 1 and 𝜅𝜅ℎ𝐵𝐵𝐵𝐵= 0.5, 1. Extended Data Fig. 6 presents the results for each parameter set and each 𝜉𝜉. 
+When both parameters are set to 1 (panels d,h), eﬀec�vely neglec�ng moiré relaxa�on and assuming 
+equal tunneling amplitudes between carbon –boron and carbon –nitrogen, the two alignment 
+orienta�ons yield nearly iden�cal DOS maps, with only subtle and d iﬃcult-to-resolve diﬀerences.  
+Introducing relaxa�on alone (𝜅𝜅ℎ𝐵𝐵𝐵𝐵=  0.5, 𝑟𝑟𝐵𝐵𝐵𝐵=  1, panels c,g ) leads to pronounced diﬀerences 
+between 𝜉𝜉= 0 and 𝜉𝜉= 1; however, this conﬁgura�on predicts a persistent gap at 𝜈𝜈= −4 across a 
+wide range of moiré- proximate displacement ﬁelds in par�cular for 𝜉𝜉=  0, inconsistent with 
+experimental observa�ons. Conversely, enabling only the tunneling asymmetry by se�ng 𝑟𝑟𝐵𝐵𝐵𝐵= 0.5 
+while keeping 𝜅𝜅ℎ𝐵𝐵𝐵𝐵= 1 (panels b,f) again results in nearly indis�nguishable DOS maps for the two 
+alignment orienta�ons, and fails to capture the observed asymmetry. Only when both eﬀects are 
+included— using the experimentally derived parameter set [32] with 𝑟𝑟𝐵𝐵𝐵𝐵= 0.5 and 𝜅𝜅ℎ𝐵𝐵𝐵𝐵= 0.5 (panels 
+a,e)— do we reproduce both key features: a clear dis�nc�on between the two 𝜉𝜉 conﬁgura�ons and the 
+absence of a robust gap at 𝜈𝜈= −4 for 𝜉𝜉= 0 on the hole-doped, moiré-proximate side. 
+Extended Data Fig. 6. Dependence of DOS maps on 𝜿𝜿𝒉𝒉𝒉𝒉𝒉𝒉 and 𝒓𝒓𝒉𝒉𝒉𝒉. a-d, Calculated DOS maps for 𝜉𝜉= 
+1 using diﬀerent combina�ons of 𝜅𝜅ℎ𝐵𝐵𝐵𝐵 and 𝑟𝑟𝐵𝐵𝐵𝐵: (a) 𝜅𝜅ℎ𝐵𝐵𝐵𝐵= 0.5, 𝑟𝑟𝐵𝐵𝐵𝐵= 0.5; (b) 𝜅𝜅ℎ𝐵𝐵𝐵𝐵= 1, 𝑟𝑟𝐵𝐵𝐵𝐵= 0.5; 
+(c) 𝜅𝜅ℎ𝐵𝐵𝐵𝐵=  0.5, 𝑟𝑟𝐵𝐵𝐵𝐵=  1; ( d) 𝜅𝜅ℎ𝐵𝐵𝐵𝐵=  1, 𝑟𝑟𝐵𝐵𝐵𝐵=  1. e-h, Same as ( a-d) for 𝜉𝜉=  0. Including both moiré 
+relaxa�on (𝜅𝜅ℎ𝐵𝐵𝐵𝐵< 1) and tunneling asymmetry ( 𝑟𝑟𝐵𝐵𝐵𝐵< 1) is essen�al to capture the observed 
+diﬀerences in alignment-dependent DOS features. 
+Weakly-magne�c phase  
+The SOT magnetometry data of the 𝜉𝜉= 1 device in Fig. 3a shows a clear phase transi�on from a valley- 
+and spin-polarized (VP-SP) phase to a diﬀerent state with only weak magne�za�on, occurring around 
+𝐷𝐷≈ 0.4 V/nm. This WM phase exhibits a pronounced resistance peak at 𝜈𝜈= 1, and has therefore been 
+
+
+===== PAGE 27 =====
+27 
+ 
+suggested to correspond to an IVC state. While this interpreta�on appears to be the most likely, the 
+experimental evidence remains insuﬃcient to conclusively verify it, and alterna�ve explana�ons 
+cannot be ruled out. 
+One such alterna�ve is that the region marked in light blue  in Fig. 3b does not represent a single 
+uniform phase, but rather a broader domain in which the rela�ve polariza�on between spin and valley 
+evolves con�nuously as a func�on of 𝜈𝜈 and 𝐷𝐷. In this scenario, a gap opens only near 𝜈𝜈= 1 where the 
+system reaches a VP-SP conﬁgura�on. The absence of a sharp 𝑑𝑑𝑀𝑀/𝑑𝑑𝑛𝑛 peak across this transi�on could 
+then be atributed to a gradual crossover, with magne�za�on changes falling below our experimental 
+resolu�on.  
+ 

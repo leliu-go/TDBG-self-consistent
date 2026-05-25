@@ -1,0 +1,16 @@
+method: stoner
+shared:
+  nu_grid: [0.0, 1.0, 2.0]
+  D_Vnm_grid: [0.0]
+  output_dir: outputs/correlated_example
+band_source:
+  kind: precomputed_npz
+  precomputed_npz_path: null
+  projected_model_path: null
+stoner:
+  u0_meV_A2: 100.0
+  JH_meV_A2: 0.0
+  n_random_seeds: 20
+projected_hf:
+  exchange_model: none
+  filling_reference: neutrality
