@@ -19,20 +19,29 @@ class StonerResult:
     seed_name: str
     local_minima: list[dict]
 
+    def _spin_polarization_signed(self) -> float:
+        return float((self.nu_f[0] + self.nu_f[1]) - (self.nu_f[2] + self.nu_f[3]))
+
+    def _valley_polarization_signed(self) -> float:
+        return float((self.nu_f[0] + self.nu_f[2]) - (self.nu_f[1] + self.nu_f[3]))
+
+    def _spin_valley_polarization_signed(self) -> float:
+        return float((self.nu_f[0] + self.nu_f[3]) - (self.nu_f[1] + self.nu_f[2]))
+
     @property
     def spin_polarization(self) -> float:
-        return float((self.nu_f[0] + self.nu_f[1]) - (self.nu_f[2] + self.nu_f[3]))
+        return abs(self._spin_polarization_signed())
 
     @property
     def valley_polarization(self) -> float:
-        return float((self.nu_f[0] + self.nu_f[2]) - (self.nu_f[1] + self.nu_f[3]))
+        return abs(self._valley_polarization_signed())
 
     @property
     def spin_valley_polarization(self) -> float:
-        return float((self.nu_f[0] + self.nu_f[3]) - (self.nu_f[1] + self.nu_f[2]))
+        return abs(self._spin_valley_polarization_signed())
 
     def _normalize_by_total_filling(self, value: float) -> float:
-        total = float(self.nu_total)
+        total = abs(float(self.nu_total))
         if abs(total) < 1e-12:
             return float("nan")
         return float(value) / total

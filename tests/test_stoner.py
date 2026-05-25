@@ -86,9 +86,9 @@ def test_stoner_result_normalized_order_parameters_use_signed_total_filling():
         local_minima=[],
     )
 
-    assert result.spin_polarization == -0.5
-    assert result.valley_polarization == -1.0
-    assert result.spin_valley_polarization == -0.5
+    assert result.spin_polarization == 0.5
+    assert result.valley_polarization == 1.0
+    assert result.spin_valley_polarization == 0.5
     assert result.spin_polarization_norm == 0.25
     assert result.valley_polarization_norm == 0.5
     assert result.spin_valley_polarization_norm == 0.25
