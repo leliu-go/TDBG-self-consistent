@@ -31,7 +31,7 @@ from tdbg_scf import (
     make_uniform_mbz_grid,
 )
 from tdbg_scf.density import dos_at_mu_gaussian
-from tdbg_scf.filling import moire_cell_area_A2_from_weights
+from tdbg_scf.filling import filling_to_density_cm2, moire_cell_area_A2_from_weights
 from tdbg_scf.plotting import compute_full_bands_along_path, plot_bands, plot_layer_profile
 from tdbg_scf.stoner.full_band import (
     build_full_band_flavor_tables,
@@ -39,6 +39,8 @@ from tdbg_scf.stoner.full_band import (
     explicit_flavor_dos_at_mu,
     layer_polarizations,
     restrict_tables_to_carrier_sector,
+    stoner_layer_dos_at_mu,
+    stoner_layer_fillings,
     stoner_mu_by_flavor,
     stoner_result_to_dict,
 )
@@ -274,6 +276,18 @@ def save_flavor_occupations(out: Path, nu_f: np.ndarray) -> None:
     plt.close(fig)
 
 
+def save_layer_dos_bars(out: Path, layer_dos: np.ndarray) -> None:
+    layers = np.arange(1, len(layer_dos) + 1)
+    fig, ax = plt.subplots(figsize=(4.2, 3.0))
+    ax.bar(layers, layer_dos)
+    ax.set_xticks(layers)
+    ax.set_xlabel("Layer")
+    ax.set_ylabel(r"DOS (A$^{-2}$ meV$^{-1}$)")
+    fig.tight_layout()
+    fig.savefig(out / "stoner_layer_dos.png", dpi=220)
+    plt.close(fig)
+
+
 def save_stoner_flavor_bands(out: Path, dist: np.ndarray, bands_K: np.ndarray, bands_Kp: np.ndarray,
                              ticks: list[int], labels: list[str], mu_f: np.ndarray, n_show: int) -> None:
     bands_by_flavor = [bands_K, bands_Kp, bands_K, bands_Kp]
@@ -330,9 +344,38 @@ def run_point(task: dict[str, Any], args: argparse.Namespace, detail_dir: Path |
         )
         stoner = solve_stoner_fixed_nu(nu_total, tables, stoner_params_from_args(args), A_M_A2)
         mu_f = stoner_mu_by_flavor(stoner, tables)
+        layer_masks = ham_K.layer_projectors_diagonal()
+        stoner_nu_layer = stoner_layer_fillings(
+            evals_K,
+            evecs_K,
+            evals_Kp,
+            evecs_Kp,
+            weights,
+            layer_masks,
+            A_M_A2,
+            stoner.nu_f,
+        )
+        stoner_n_layer_cm2 = np.asarray([filling_to_density_cm2(x, A_M_A2) for x in stoner_nu_layer], dtype=float)
+        stoner_layer_dos = stoner_layer_dos_at_mu(
+            evals_K,
+            evecs_K,
+            evals_Kp,
+            evecs_Kp,
+            weights,
+            layer_masks,
+            mu_f,
+            args.dos_sigma_meV,
+        )
 
         n_layer_cm2 = np.asarray(scf.n_layer_cm2, dtype=float)
         pol = layer_polarizations(n_layer_cm2)
+        stoner_pol = {f"stoner_{key}": value for key, value in layer_polarizations(stoner_n_layer_cm2).items()}
+        stoner_layer_dos_pol = {
+            "stoner_layer_dos_total": float(np.sum(stoner_layer_dos)),
+            "stoner_layer_dos_top_bottom": float((stoner_layer_dos[0] + stoner_layer_dos[1]) - (stoner_layer_dos[2] + stoner_layer_dos[3])),
+            "stoner_layer_dos_outer_inner": float((stoner_layer_dos[0] + stoner_layer_dos[3]) - (stoner_layer_dos[1] + stoner_layer_dos[2])),
+            "stoner_layer_dos_dipole": float(1.5 * stoner_layer_dos[0] + 0.5 * stoner_layer_dos[1] - 0.5 * stoner_layer_dos[2] - 1.5 * stoner_layer_dos[3]),
+        }
         dos_full = float(
             2.0 * dos_at_mu_gaussian(evals_K, weights, scf.mu_meV, sigma_meV=args.dos_sigma_meV, degeneracy=1)
             + 2.0 * dos_at_mu_gaussian(evals_Kp, weights, scf.mu_meV, sigma_meV=args.dos_sigma_meV, degeneracy=1)
@@ -385,9 +428,20 @@ def run_point(task: dict[str, Any], args: argparse.Namespace, detail_dir: Path |
             "n2_cm2": float(n_layer_cm2[1]),
             "n3_cm2": float(n_layer_cm2[2]),
             "n4_cm2": float(n_layer_cm2[3]),
+            "stoner_n1_cm2": float(stoner_n_layer_cm2[0]),
+            "stoner_n2_cm2": float(stoner_n_layer_cm2[1]),
+            "stoner_n3_cm2": float(stoner_n_layer_cm2[2]),
+            "stoner_n4_cm2": float(stoner_n_layer_cm2[3]),
+            "stoner_n_total_layer_cm2": float(np.sum(stoner_n_layer_cm2)),
+            "stoner_layer_dos_L1": float(stoner_layer_dos[0]),
+            "stoner_layer_dos_L2": float(stoner_layer_dos[1]),
+            "stoner_layer_dos_L3": float(stoner_layer_dos[2]),
+            "stoner_layer_dos_L4": float(stoner_layer_dos[3]),
             "runtime_s": float(time.time() - started),
         }
         row.update(pol)
+        row.update(stoner_pol)
+        row.update(stoner_layer_dos_pol)
 
         if detail_dir is not None:
             save_detail_outputs(
@@ -446,6 +500,17 @@ def save_detail_outputs(
     write_json(out / "stoner_result.json", stoner_dict)
     pd.DataFrame(scf.history).to_csv(out / "scf_history.csv", index=False)
     pd.DataFrame({"layer": [1, 2, 3, 4], "U_meV": scf.U_meV, "n_cm2": scf.n_layer_cm2}).to_csv(out / "layers.csv", index=False)
+    stoner_n_layer_cm2 = np.asarray([row[f"stoner_n{layer}_cm2"] for layer in range(1, 5)], dtype=float)
+    stoner_layer_dos = np.asarray([row[f"stoner_layer_dos_L{layer}"] for layer in range(1, 5)], dtype=float)
+    pd.DataFrame(
+        {
+            "layer": [1, 2, 3, 4],
+            "U_meV": scf.U_meV,
+            "scf_n_cm2": scf.n_layer_cm2,
+            "stoner_n_cm2": stoner_n_layer_cm2,
+            "stoner_layer_dos": stoner_layer_dos,
+        }
+    ).to_csv(out / "stoner_layers.csv", index=False)
     np.savez(
         out / "full_band_stoner_cache.npz",
         kpts=kpts,
@@ -457,11 +522,15 @@ def save_detail_outputs(
         evecs_K=evecs_K,
         evecs_Kp=evecs_Kp,
         n_layer_cm2=scf.n_layer_cm2,
+        stoner_n_layer_cm2=stoner_n_layer_cm2,
+        stoner_layer_dos=stoner_layer_dos,
         nu_f=stoner.nu_f,
         mu_f_meV=stoner_mu_by_flavor(stoner, tables),
     )
 
     plot_layer_profile(scf.U_meV, scf.n_layer_cm2, out=str(out / "layer_profile.png"))
+    plot_layer_profile(scf.U_meV, stoner_n_layer_cm2, out=str(out / "stoner_layer_profile.png"))
+    save_layer_dos_bars(out, stoner_layer_dos)
     save_flavor_occupations(out, stoner.nu_f)
     mu_f = stoner_mu_by_flavor(stoner, tables)
     save_dos_figure(out, evals_K, evals_Kp, weights, scf.mu_meV, mu_f, args)

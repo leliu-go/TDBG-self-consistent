@@ -71,3 +71,55 @@ def test_carrier_sector_restriction_forbids_compensated_electron_hole_pairs():
     assert np.isclose(np.sum(result.nu_f), 0.5)
     assert np.all(result.nu_f >= -1e-10)
     assert np.max(result.nu_f) <= 0.5 + 1e-10
+
+
+def test_layer_filling_from_nu_uses_full_band_layer_weights():
+    from tdbg_scf.stoner.full_band import layer_filling_from_nu
+
+    evals = np.array([[0.0, 2.0]])
+    evecs = np.tile(np.eye(2, dtype=np.complex128), (1, 1, 1))
+    weights = np.array([1.0])
+    layer_masks = np.array([[1.0, 0.0], [0.0, 1.0]])
+
+    neutral = layer_filling_from_nu(evals, evecs, weights, layer_masks, A_M_A2=1.0, nu=0.0)
+    electron = layer_filling_from_nu(evals, evecs, weights, layer_masks, A_M_A2=1.0, nu=1.0)
+    hole = layer_filling_from_nu(evals, evecs, weights, layer_masks, A_M_A2=1.0, nu=-1.0)
+
+    assert np.allclose(neutral, [0.5, -0.5])
+    assert np.allclose(electron, [0.5, 0.5])
+    assert np.allclose(hole, [-0.5, -0.5])
+    assert np.isclose(np.sum(neutral), 0.0)
+    assert np.isclose(np.sum(electron), 1.0)
+    assert np.isclose(np.sum(hole), -1.0)
+
+
+def test_stoner_layer_dos_sums_to_total_flavor_dos():
+    from tdbg_scf.density import dos_at_mu_gaussian
+    from tdbg_scf.stoner.full_band import stoner_layer_dos_at_mu
+
+    evals_K = np.array([[0.0, 2.0]])
+    evals_Kp = np.array([[1.0, 3.0]])
+    evecs = np.tile(np.eye(2, dtype=np.complex128), (1, 1, 1))
+    weights = np.array([1.0])
+    layer_masks = np.array([[1.0, 0.0], [0.0, 1.0]])
+    mu_f = np.array([0.0, 1.0, 0.0, 1.0])
+
+    layer_dos = stoner_layer_dos_at_mu(
+        evals_K,
+        evecs,
+        evals_Kp,
+        evecs,
+        weights,
+        layer_masks,
+        mu_f,
+        sigma_meV=1.0,
+    )
+    total = (
+        dos_at_mu_gaussian(evals_K, weights, mu_f[0], sigma_meV=1.0, degeneracy=1)
+        + dos_at_mu_gaussian(evals_Kp, weights, mu_f[1], sigma_meV=1.0, degeneracy=1)
+        + dos_at_mu_gaussian(evals_K, weights, mu_f[2], sigma_meV=1.0, degeneracy=1)
+        + dos_at_mu_gaussian(evals_Kp, weights, mu_f[3], sigma_meV=1.0, degeneracy=1)
+    )
+
+    assert np.isclose(np.sum(layer_dos), total)
+    assert np.all(layer_dos > 0.0)

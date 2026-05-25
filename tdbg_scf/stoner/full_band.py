@@ -3,7 +3,7 @@ from __future__ import annotations
 
 import numpy as np
 
-from ..density import dos_at_mu_gaussian
+from ..density import dos_at_mu_gaussian, layer_weights_from_evecs
 from ..filling import density_cm2_to_filling
 from .dos import FlavorBandTable
 
@@ -122,6 +122,121 @@ def explicit_flavor_dos_at_mu(
         + dos_at_mu_gaussian(evals_Kp_meV, weights, float(mu_f_meV[1]), sigma_meV=sigma_meV, degeneracy=1)
         + dos_at_mu_gaussian(evals_K_meV, weights, float(mu_f_meV[2]), sigma_meV=sigma_meV, degeneracy=1)
         + dos_at_mu_gaussian(evals_Kp_meV, weights, float(mu_f_meV[3]), sigma_meV=sigma_meV, degeneracy=1)
+    )
+
+
+def layer_filling_from_nu(
+    energies_meV: np.ndarray,
+    evecs: np.ndarray,
+    weights: np.ndarray,
+    layer_masks: np.ndarray,
+    A_M_A2: float,
+    nu: float,
+) -> np.ndarray:
+    """Layer-resolved filling for one flavor at signed filling ``nu``.
+
+    The returned values are moire fillings per layer, using the same
+    neutrality convention as the full-band SCF density: occupied states minus
+    one half of every state.
+    """
+
+    energies = np.asarray(energies_meV, dtype=float)
+    w = np.asarray(weights, dtype=float)
+    if energies.ndim != 2:
+        raise ValueError("energies_meV must have shape (Nk, Nb)")
+    if w.shape != (energies.shape[0],):
+        raise ValueError("weights must have shape (Nk,)")
+
+    W = layer_weights_from_evecs(evecs, layer_masks)
+    if W.shape[:2] != energies.shape:
+        raise ValueError("evecs/layer_masks must produce layer weights matching energies")
+
+    Nk, Nb = energies.shape
+    state_e = energies.reshape(-1)
+    state_dnu = np.repeat(w, Nb) * float(A_M_A2)
+    state_layer_dnu = W.reshape(-1, W.shape[-1]) * state_dnu[:, None]
+    total_capacity = float(np.sum(state_dnu))
+    target_abs = 0.5 * total_capacity + float(nu)
+    if target_abs < -1e-10 or target_abs > total_capacity + 1e-10:
+        raise ValueError("nu outside available full-band capacity")
+    target_abs = float(np.clip(target_abs, 0.0, total_capacity))
+
+    order = np.argsort(state_e, kind="mergesort")
+    dnu_sorted = state_dnu[order]
+    layer_sorted = state_layer_dnu[order]
+    cum_before = np.concatenate([[0.0], np.cumsum(dnu_sorted[:-1])])
+    with np.errstate(divide="ignore", invalid="ignore"):
+        fraction = np.clip((target_abs - cum_before) / dnu_sorted, 0.0, 1.0)
+    fraction = np.where(dnu_sorted > 0.0, fraction, 0.0)
+
+    occupied_layer = np.sum(layer_sorted * fraction[:, None], axis=0)
+    neutral_reference = 0.5 * np.sum(state_layer_dnu, axis=0)
+    return np.real(occupied_layer - neutral_reference)
+
+
+def stoner_layer_fillings(
+    evals_K_meV: np.ndarray,
+    evecs_K: np.ndarray,
+    evals_Kp_meV: np.ndarray,
+    evecs_Kp: np.ndarray,
+    weights: np.ndarray,
+    layer_masks: np.ndarray,
+    A_M_A2: float,
+    nu_f: np.ndarray,
+) -> np.ndarray:
+    """Total Stoner layer filling summed over K/K' and spin flavors."""
+
+    values = np.asarray(nu_f, dtype=float)
+    if values.shape != (4,):
+        raise ValueError("nu_f must have shape (4,)")
+    return (
+        layer_filling_from_nu(evals_K_meV, evecs_K, weights, layer_masks, A_M_A2, values[0])
+        + layer_filling_from_nu(evals_Kp_meV, evecs_Kp, weights, layer_masks, A_M_A2, values[1])
+        + layer_filling_from_nu(evals_K_meV, evecs_K, weights, layer_masks, A_M_A2, values[2])
+        + layer_filling_from_nu(evals_Kp_meV, evecs_Kp, weights, layer_masks, A_M_A2, values[3])
+    )
+
+
+def layer_dos_at_mu_gaussian(
+    evals_meV: np.ndarray,
+    evecs: np.ndarray,
+    weights: np.ndarray,
+    layer_masks: np.ndarray,
+    mu_meV: float,
+    sigma_meV: float,
+) -> np.ndarray:
+    """Single-flavor Gaussian DOS at ``mu`` projected onto layers."""
+
+    evals = np.asarray(evals_meV, dtype=float)
+    W = layer_weights_from_evecs(evecs, layer_masks)
+    if W.shape[:2] != evals.shape:
+        raise ValueError("evecs/layer_masks must produce layer weights matching evals")
+    sigma = float(sigma_meV)
+    x = (evals - float(mu_meV)) / sigma
+    kernel = np.exp(-0.5 * x * x) / (np.sqrt(2.0 * np.pi) * sigma)
+    return np.real(np.einsum("k,kb,kbl->l", weights, kernel, W, optimize=True))
+
+
+def stoner_layer_dos_at_mu(
+    evals_K_meV: np.ndarray,
+    evecs_K: np.ndarray,
+    evals_Kp_meV: np.ndarray,
+    evecs_Kp: np.ndarray,
+    weights: np.ndarray,
+    layer_masks: np.ndarray,
+    mu_f_meV: np.ndarray,
+    sigma_meV: float,
+) -> np.ndarray:
+    """Layer-resolved explicit-flavor DOS evaluated at Stoner flavor chemical potentials."""
+
+    mu = np.asarray(mu_f_meV, dtype=float)
+    if mu.shape != (4,):
+        raise ValueError("mu_f_meV must have shape (4,)")
+    return (
+        layer_dos_at_mu_gaussian(evals_K_meV, evecs_K, weights, layer_masks, mu[0], sigma_meV)
+        + layer_dos_at_mu_gaussian(evals_Kp_meV, evecs_Kp, weights, layer_masks, mu[1], sigma_meV)
+        + layer_dos_at_mu_gaussian(evals_K_meV, evecs_K, weights, layer_masks, mu[2], sigma_meV)
+        + layer_dos_at_mu_gaussian(evals_Kp_meV, evecs_Kp, weights, layer_masks, mu[3], sigma_meV)
     )
 
 
