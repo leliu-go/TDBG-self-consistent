@@ -30,7 +30,8 @@ from tdbg_scf import (
     linear_potential_from_D,
     make_uniform_mbz_grid,
 )
-from tdbg_scf.density import dos_at_mu_gaussian
+from tdbg_scf.constants import cm2_to_a2
+from tdbg_scf.density import dos_at_mu_gaussian, find_mu_for_density
 from tdbg_scf.filling import filling_to_density_cm2, moire_cell_area_A2_from_weights
 from tdbg_scf.plotting import compute_full_bands_along_path, plot_bands, plot_layer_profile
 from tdbg_scf.stoner.full_band import (
@@ -245,18 +246,50 @@ def gaussian_dos_curve(evals_by_flavor: list[np.ndarray], weights: np.ndarray, c
     return dos
 
 
+def full_band_dos_summary(
+    evals_K: np.ndarray,
+    evals_Kp: np.ndarray,
+    weights: np.ndarray,
+    n_cm2: float,
+    projected_mu_meV: float,
+    sigma_meV: float,
+    kBT_meV: float,
+) -> dict[str, float]:
+    evals_both = np.concatenate([evals_K, evals_Kp], axis=1)
+    full_mu = find_mu_for_density(
+        evals_both,
+        weights,
+        cm2_to_a2(float(n_cm2)),
+        degeneracy=2,
+        kBT_meV=float(kBT_meV),
+    )
+    dos_at_projected_mu = float(
+        2.0 * dos_at_mu_gaussian(evals_K, weights, float(projected_mu_meV), sigma_meV=sigma_meV, degeneracy=1)
+        + 2.0 * dos_at_mu_gaussian(evals_Kp, weights, float(projected_mu_meV), sigma_meV=sigma_meV, degeneracy=1)
+    )
+    dos_at_full_mu = float(
+        2.0 * dos_at_mu_gaussian(evals_K, weights, full_mu, sigma_meV=sigma_meV, degeneracy=1)
+        + 2.0 * dos_at_mu_gaussian(evals_Kp, weights, full_mu, sigma_meV=sigma_meV, degeneracy=1)
+    )
+    return {
+        "full_mu_meV": float(full_mu),
+        "dos_mu_full_at_projected_mu": dos_at_projected_mu,
+        "dos_mu_full_at_full_mu": dos_at_full_mu,
+    }
+
+
 def save_dos_figure(out: Path, evals_K: np.ndarray, evals_Kp: np.ndarray, weights: np.ndarray,
-                    scf_mu: float, mu_f: np.ndarray, args: argparse.Namespace) -> None:
+                    reference_mu: float, mu_f: np.ndarray, args: argparse.Namespace) -> None:
     centers = np.linspace(args.dos_emin_meV, args.dos_emax_meV, args.dos_bins)
-    evals_by_flavor = [evals_K - scf_mu, evals_Kp - scf_mu, evals_K - scf_mu, evals_Kp - scf_mu]
+    evals_by_flavor = [evals_K - reference_mu, evals_Kp - reference_mu, evals_K - reference_mu, evals_Kp - reference_mu]
     dos = gaussian_dos_curve(evals_by_flavor, weights, centers, args.dos_sigma_meV)
-    np.savez(out / "full_band_stoner_dos.npz", energy_meV=centers, dos=dos, scf_mu_meV=scf_mu, mu_f_meV=mu_f)
+    np.savez(out / "full_band_stoner_dos.npz", energy_meV=centers, dos=dos, full_mu_meV=reference_mu, mu_f_meV=mu_f)
 
     fig, ax = plt.subplots(figsize=(4.4, 3.2))
     ax.plot(centers, dos, lw=1.2)
-    ax.axvline(0.0, color="0.4", lw=0.8, ls="--", label="SCF mu")
+    ax.axvline(0.0, color="0.4", lw=0.8, ls="--", label="full-band mu")
     for name, mu in zip(FLAVOR_NAMES, mu_f):
-        ax.axvline(float(mu - scf_mu), lw=0.8, alpha=0.65, label=name)
+        ax.axvline(float(mu - reference_mu), lw=0.8, alpha=0.65, label=name)
     ax.set_xlabel(r"$E-\mu_{\mathrm{full}}$ (meV)")
     ax.set_ylabel(r"DOS (A$^{-2}$ meV$^{-1}$)")
     ax.legend(fontsize=7, ncol=2)
@@ -376,9 +409,14 @@ def run_point(task: dict[str, Any], args: argparse.Namespace, detail_dir: Path |
             "stoner_layer_dos_outer_inner": float((stoner_layer_dos[0] + stoner_layer_dos[3]) - (stoner_layer_dos[1] + stoner_layer_dos[2])),
             "stoner_layer_dos_dipole": float(1.5 * stoner_layer_dos[0] + 0.5 * stoner_layer_dos[1] - 0.5 * stoner_layer_dos[2] - 1.5 * stoner_layer_dos[3]),
         }
-        dos_full = float(
-            2.0 * dos_at_mu_gaussian(evals_K, weights, scf.mu_meV, sigma_meV=args.dos_sigma_meV, degeneracy=1)
-            + 2.0 * dos_at_mu_gaussian(evals_Kp, weights, scf.mu_meV, sigma_meV=args.dos_sigma_meV, degeneracy=1)
+        full_dos = full_band_dos_summary(
+            evals_K,
+            evals_Kp,
+            weights,
+            n_cm2=n_cm2,
+            projected_mu_meV=scf.mu_meV,
+            sigma_meV=args.dos_sigma_meV,
+            kBT_meV=args.kBT_meV,
         )
         row = {
             "status": "ok",
@@ -395,7 +433,7 @@ def run_point(task: dict[str, Any], args: argparse.Namespace, detail_dir: Path |
             "scf_converged": bool(scf.converged),
             "scf_residual_meV": float(scf.residual_meV),
             "scf_iterations": int(scf.iterations),
-            "full_mu_meV": float(scf.mu_meV),
+            "full_mu_meV": full_dos["full_mu_meV"],
             "full_converged": bool(scf.converged),
             "full_residual_meV": float(scf.residual_meV),
             "full_iterations": int(scf.iterations),
@@ -417,8 +455,10 @@ def run_point(task: dict[str, Any], args: argparse.Namespace, detail_dir: Path |
             "spin_valley_polarization": stoner.spin_valley_polarization,
             "spin_valley_polarization_norm": stoner.spin_valley_polarization_norm,
             "flavor_polarization": stoner.flavor_polarization,
-            "dos_mu_scf": dos_full,
-            "dos_mu_full_scf": dos_full,
+            "dos_mu_scf": full_dos["dos_mu_full_at_full_mu"],
+            "dos_mu_full_scf": full_dos["dos_mu_full_at_full_mu"],
+            "dos_mu_full_at_full_mu": full_dos["dos_mu_full_at_full_mu"],
+            "dos_mu_full_at_projected_mu": full_dos["dos_mu_full_at_projected_mu"],
             "dos_mu_stoner": explicit_flavor_dos_at_mu(evals_K, evals_Kp, weights, mu_f, args.dos_sigma_meV),
             "U1_meV": float(scf.U_meV[0]),
             "U2_meV": float(scf.U_meV[1]),
@@ -517,6 +557,7 @@ def save_detail_outputs(
         weights=weights,
         U_scf_meV=scf.U_meV,
         mu_scf_meV=scf.mu_meV,
+        mu_full_meV=row["full_mu_meV"],
         evals_K_meV=evals_K,
         evals_Kp_meV=evals_Kp,
         evecs_K=evecs_K,
@@ -533,14 +574,15 @@ def save_detail_outputs(
     save_layer_dos_bars(out, stoner_layer_dos)
     save_flavor_occupations(out, stoner.nu_f)
     mu_f = stoner_mu_by_flavor(stoner, tables)
-    save_dos_figure(out, evals_K, evals_Kp, weights, scf.mu_meV, mu_f, args)
+    full_mu = float(row["full_mu_meV"])
+    save_dos_figure(out, evals_K, evals_Kp, weights, full_mu, mu_f, args)
 
     dist_K, bands_K, ticks_K, labels_K = compute_full_bands_along_path(ham_K, scf.U_meV, points_per_segment=args.points_per_segment)
     dist_Kp, bands_Kp, ticks_Kp, labels_Kp = compute_full_bands_along_path(ham_Kp, scf.U_meV, points_per_segment=args.points_per_segment)
-    np.savez(out / "full_bands_K.npz", dist=dist_K, bands=bands_K, ticks=ticks_K, labels=labels_K, mu_meV=scf.mu_meV)
-    np.savez(out / "full_bands_Kp.npz", dist=dist_Kp, bands=bands_Kp, ticks=ticks_Kp, labels=labels_Kp, mu_meV=scf.mu_meV)
-    plot_bands(dist_K, bands_K, ticks_K, labels_K, mu_meV=scf.mu_meV, n_show=args.n_show_full, title="Full bands K at SCF U", out=str(out / "full_bands_K.png"))
-    plot_bands(dist_Kp, bands_Kp, ticks_Kp, labels_Kp, mu_meV=scf.mu_meV, n_show=args.n_show_full, title="Full bands K' at SCF U", out=str(out / "full_bands_Kp.png"))
+    np.savez(out / "full_bands_K.npz", dist=dist_K, bands=bands_K, ticks=ticks_K, labels=labels_K, mu_meV=full_mu)
+    np.savez(out / "full_bands_Kp.npz", dist=dist_Kp, bands=bands_Kp, ticks=ticks_Kp, labels=labels_Kp, mu_meV=full_mu)
+    plot_bands(dist_K, bands_K, ticks_K, labels_K, mu_meV=full_mu, n_show=args.n_show_full, title="Full bands K at SCF U", out=str(out / "full_bands_K.png"))
+    plot_bands(dist_Kp, bands_Kp, ticks_Kp, labels_Kp, mu_meV=full_mu, n_show=args.n_show_full, title="Full bands K' at SCF U", out=str(out / "full_bands_Kp.png"))
     save_stoner_flavor_bands(out, dist_K, bands_K, bands_Kp, ticks_K, labels_K, mu_f, args.n_show_full)
 
 
