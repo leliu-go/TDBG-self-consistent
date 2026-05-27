@@ -174,6 +174,32 @@ def layer_filling_from_nu(
     return np.real(occupied_layer - neutral_reference)
 
 
+def stoner_flavor_layer_fillings(
+    evals_K_meV: np.ndarray,
+    evecs_K: np.ndarray,
+    evals_Kp_meV: np.ndarray,
+    evecs_Kp: np.ndarray,
+    weights: np.ndarray,
+    layer_masks: np.ndarray,
+    A_M_A2: float,
+    nu_f: np.ndarray,
+) -> np.ndarray:
+    """Layer fillings for flavors ordered as K_up, Kp_up, K_down, Kp_down."""
+
+    values = np.asarray(nu_f, dtype=float)
+    if values.shape != (4,):
+        raise ValueError("nu_f must have shape (4,)")
+    return np.stack(
+        [
+            layer_filling_from_nu(evals_K_meV, evecs_K, weights, layer_masks, A_M_A2, values[0]),
+            layer_filling_from_nu(evals_Kp_meV, evecs_Kp, weights, layer_masks, A_M_A2, values[1]),
+            layer_filling_from_nu(evals_K_meV, evecs_K, weights, layer_masks, A_M_A2, values[2]),
+            layer_filling_from_nu(evals_Kp_meV, evecs_Kp, weights, layer_masks, A_M_A2, values[3]),
+        ],
+        axis=0,
+    )
+
+
 def stoner_layer_fillings(
     evals_K_meV: np.ndarray,
     evecs_K: np.ndarray,
@@ -186,14 +212,18 @@ def stoner_layer_fillings(
 ) -> np.ndarray:
     """Total Stoner layer filling summed over K/K' and spin flavors."""
 
-    values = np.asarray(nu_f, dtype=float)
-    if values.shape != (4,):
-        raise ValueError("nu_f must have shape (4,)")
-    return (
-        layer_filling_from_nu(evals_K_meV, evecs_K, weights, layer_masks, A_M_A2, values[0])
-        + layer_filling_from_nu(evals_Kp_meV, evecs_Kp, weights, layer_masks, A_M_A2, values[1])
-        + layer_filling_from_nu(evals_K_meV, evecs_K, weights, layer_masks, A_M_A2, values[2])
-        + layer_filling_from_nu(evals_Kp_meV, evecs_Kp, weights, layer_masks, A_M_A2, values[3])
+    return np.sum(
+        stoner_flavor_layer_fillings(
+            evals_K_meV,
+            evecs_K,
+            evals_Kp_meV,
+            evecs_Kp,
+            weights,
+            layer_masks,
+            A_M_A2,
+            nu_f,
+        ),
+        axis=0,
     )
 
 
@@ -217,6 +247,32 @@ def layer_dos_at_mu_gaussian(
     return np.real(np.einsum("k,kb,kbl->l", weights, kernel, W, optimize=True))
 
 
+def stoner_flavor_layer_dos_at_mu(
+    evals_K_meV: np.ndarray,
+    evecs_K: np.ndarray,
+    evals_Kp_meV: np.ndarray,
+    evecs_Kp: np.ndarray,
+    weights: np.ndarray,
+    layer_masks: np.ndarray,
+    mu_f_meV: np.ndarray,
+    sigma_meV: float,
+) -> np.ndarray:
+    """Layer DOS for flavors ordered as K_up, Kp_up, K_down, Kp_down."""
+
+    mu = np.asarray(mu_f_meV, dtype=float)
+    if mu.shape != (4,):
+        raise ValueError("mu_f_meV must have shape (4,)")
+    return np.stack(
+        [
+            layer_dos_at_mu_gaussian(evals_K_meV, evecs_K, weights, layer_masks, mu[0], sigma_meV),
+            layer_dos_at_mu_gaussian(evals_Kp_meV, evecs_Kp, weights, layer_masks, mu[1], sigma_meV),
+            layer_dos_at_mu_gaussian(evals_K_meV, evecs_K, weights, layer_masks, mu[2], sigma_meV),
+            layer_dos_at_mu_gaussian(evals_Kp_meV, evecs_Kp, weights, layer_masks, mu[3], sigma_meV),
+        ],
+        axis=0,
+    )
+
+
 def stoner_layer_dos_at_mu(
     evals_K_meV: np.ndarray,
     evecs_K: np.ndarray,
@@ -229,14 +285,18 @@ def stoner_layer_dos_at_mu(
 ) -> np.ndarray:
     """Layer-resolved explicit-flavor DOS evaluated at Stoner flavor chemical potentials."""
 
-    mu = np.asarray(mu_f_meV, dtype=float)
-    if mu.shape != (4,):
-        raise ValueError("mu_f_meV must have shape (4,)")
-    return (
-        layer_dos_at_mu_gaussian(evals_K_meV, evecs_K, weights, layer_masks, mu[0], sigma_meV)
-        + layer_dos_at_mu_gaussian(evals_Kp_meV, evecs_Kp, weights, layer_masks, mu[1], sigma_meV)
-        + layer_dos_at_mu_gaussian(evals_K_meV, evecs_K, weights, layer_masks, mu[2], sigma_meV)
-        + layer_dos_at_mu_gaussian(evals_Kp_meV, evecs_Kp, weights, layer_masks, mu[3], sigma_meV)
+    return np.sum(
+        stoner_flavor_layer_dos_at_mu(
+            evals_K_meV,
+            evecs_K,
+            evals_Kp_meV,
+            evecs_Kp,
+            weights,
+            layer_masks,
+            mu_f_meV,
+            sigma_meV,
+        ),
+        axis=0,
     )
 
 

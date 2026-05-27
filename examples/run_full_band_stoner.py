@@ -41,8 +41,8 @@ from tdbg_scf.stoner.full_band import (
     explicit_flavor_dos_at_mu,
     layer_polarizations,
     restrict_tables_to_carrier_sector,
-    stoner_layer_dos_at_mu,
-    stoner_layer_fillings,
+    stoner_flavor_layer_dos_at_mu,
+    stoner_flavor_layer_fillings,
     stoner_mu_by_flavor,
     stoner_result_to_dict,
 )
@@ -325,6 +325,30 @@ def save_layer_dos_bars(out: Path, layer_dos: np.ndarray) -> None:
     plt.close(fig)
 
 
+def save_flavor_layer_bars(out: Path, values: np.ndarray, ylabel: str, filename: str) -> None:
+    layers = np.arange(1, values.shape[1] + 1)
+    fig, axes = plt.subplots(2, 2, figsize=(7.0, 5.6), sharex=True)
+    for ax, flavor, layer_values in zip(axes.ravel(), FLAVOR_NAMES, values):
+        ax.bar(layers, layer_values)
+        ax.axhline(0.0, color="0.4", lw=0.8)
+        ax.set_title(flavor)
+        ax.set_xticks(layers)
+        ax.set_xlabel("Layer")
+        ax.set_ylabel(ylabel)
+    fig.tight_layout()
+    fig.savefig(out / filename, dpi=220)
+    plt.close(fig)
+
+
+def layer_dos_polarizations(layer_dos: np.ndarray) -> dict[str, float]:
+    d1, d2, d3, d4 = [float(x) for x in layer_dos]
+    return {
+        "layer_dos_top_bottom": (d1 + d2) - (d3 + d4),
+        "layer_dos_outer_inner": (d1 + d4) - (d2 + d3),
+        "layer_dos_dipole": 1.5 * d1 + 0.5 * d2 - 0.5 * d3 - 1.5 * d4,
+    }
+
+
 def save_stoner_flavor_bands(out: Path, dist: np.ndarray, bands_K: np.ndarray, bands_Kp: np.ndarray,
                              ticks: list[int], labels: list[str], mu_f: np.ndarray, n_show: int) -> None:
     bands_by_flavor = [bands_K, bands_Kp, bands_K, bands_Kp]
@@ -504,7 +528,7 @@ def run_point(task: dict[str, Any], args: argparse.Namespace, detail_dir: Path |
         stoner = solve_stoner_fixed_nu(nu_total, tables, stoner_params_from_args(args), A_M_A2)
         mu_f = stoner_mu_by_flavor(stoner, tables)
         layer_masks = ham_K.layer_projectors_diagonal()
-        stoner_nu_layer = stoner_layer_fillings(
+        stoner_flavor_nu_layer = stoner_flavor_layer_fillings(
             evals_K,
             evecs_K,
             evals_Kp,
@@ -514,8 +538,13 @@ def run_point(task: dict[str, Any], args: argparse.Namespace, detail_dir: Path |
             A_M_A2,
             stoner.nu_f,
         )
+        stoner_nu_layer = np.sum(stoner_flavor_nu_layer, axis=0)
+        stoner_flavor_n_layer_cm2 = np.asarray(
+            [[filling_to_density_cm2(x, A_M_A2) for x in flavor_layer] for flavor_layer in stoner_flavor_nu_layer],
+            dtype=float,
+        )
         stoner_n_layer_cm2 = np.asarray([filling_to_density_cm2(x, A_M_A2) for x in stoner_nu_layer], dtype=float)
-        stoner_layer_dos = stoner_layer_dos_at_mu(
+        stoner_flavor_layer_dos = stoner_flavor_layer_dos_at_mu(
             evals_K,
             evecs_K,
             evals_Kp,
@@ -525,6 +554,7 @@ def run_point(task: dict[str, Any], args: argparse.Namespace, detail_dir: Path |
             mu_f,
             args.dos_sigma_meV,
         )
+        stoner_layer_dos = np.sum(stoner_flavor_layer_dos, axis=0)
 
         n_layer_cm2 = np.asarray(scf.n_layer_cm2, dtype=float)
         pol = layer_polarizations(n_layer_cm2)
@@ -608,6 +638,18 @@ def run_point(task: dict[str, Any], args: argparse.Namespace, detail_dir: Path |
         row.update(pol)
         row.update(stoner_pol)
         row.update(stoner_layer_dos_pol)
+        for flavor_index, flavor_name in enumerate(FLAVOR_NAMES):
+            flavor_n = stoner_flavor_n_layer_cm2[flavor_index]
+            flavor_dos = stoner_flavor_layer_dos[flavor_index]
+            flavor_prefix = f"stoner_{flavor_name}"
+            for layer_index in range(4):
+                row[f"{flavor_prefix}_n{layer_index + 1}_cm2"] = float(flavor_n[layer_index])
+                row[f"{flavor_prefix}_layer_dos_L{layer_index + 1}"] = float(flavor_dos[layer_index])
+            for key, value in layer_polarizations(flavor_n).items():
+                row[f"{flavor_prefix}_{key}"] = value
+            row[f"{flavor_prefix}_layer_dos_total"] = float(np.sum(flavor_dos))
+            for key, value in layer_dos_polarizations(flavor_dos).items():
+                row[f"{flavor_prefix}_{key}"] = value
 
         if detail_dir is not None:
             save_detail_outputs(
@@ -677,6 +719,27 @@ def save_detail_outputs(
             "stoner_layer_dos": stoner_layer_dos,
         }
     ).to_csv(out / "stoner_layers.csv", index=False)
+    stoner_flavor_n_layer_cm2 = np.asarray(
+        [[row[f"stoner_{flavor}_n{layer}_cm2"] for layer in range(1, 5)] for flavor in FLAVOR_NAMES],
+        dtype=float,
+    )
+    stoner_flavor_layer_dos = np.asarray(
+        [[row[f"stoner_{flavor}_layer_dos_L{layer}"] for layer in range(1, 5)] for flavor in FLAVOR_NAMES],
+        dtype=float,
+    )
+    flavor_layer_rows = []
+    for flavor_index, flavor in enumerate(FLAVOR_NAMES):
+        for layer_index in range(4):
+            flavor_layer_rows.append(
+                {
+                    "flavor": flavor,
+                    "layer": layer_index + 1,
+                    "U_meV": float(scf.U_meV[layer_index]),
+                    "stoner_n_cm2": float(stoner_flavor_n_layer_cm2[flavor_index, layer_index]),
+                    "stoner_layer_dos": float(stoner_flavor_layer_dos[flavor_index, layer_index]),
+                }
+            )
+    pd.DataFrame(flavor_layer_rows).to_csv(out / "stoner_flavor_layers.csv", index=False)
     np.savez(
         out / "full_band_stoner_cache.npz",
         kpts=kpts,
@@ -691,6 +754,8 @@ def save_detail_outputs(
         n_layer_cm2=scf.n_layer_cm2,
         stoner_n_layer_cm2=stoner_n_layer_cm2,
         stoner_layer_dos=stoner_layer_dos,
+        stoner_flavor_n_layer_cm2=stoner_flavor_n_layer_cm2,
+        stoner_flavor_layer_dos=stoner_flavor_layer_dos,
         nu_f=stoner.nu_f,
         mu_f_meV=stoner_mu_by_flavor(stoner, tables),
     )
@@ -698,6 +763,8 @@ def save_detail_outputs(
     plot_layer_profile(scf.U_meV, scf.n_layer_cm2, out=str(out / "layer_profile.png"))
     plot_layer_profile(scf.U_meV, stoner_n_layer_cm2, out=str(out / "stoner_layer_profile.png"))
     save_layer_dos_bars(out, stoner_layer_dos)
+    save_flavor_layer_bars(out, stoner_flavor_n_layer_cm2, r"$n_l$ (cm$^{-2}$)", "stoner_flavor_layer_profile.png")
+    save_flavor_layer_bars(out, stoner_flavor_layer_dos, r"DOS (A$^{-2}$ meV$^{-1}$)", "stoner_flavor_layer_dos.png")
     save_flavor_occupations(out, stoner.nu_f)
     mu_f = stoner_mu_by_flavor(stoner, tables)
     full_mu = float(row["full_mu_meV"])

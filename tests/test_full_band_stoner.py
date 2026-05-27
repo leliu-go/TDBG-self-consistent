@@ -123,3 +123,75 @@ def test_stoner_layer_dos_sums_to_total_flavor_dos():
 
     assert np.isclose(np.sum(layer_dos), total)
     assert np.all(layer_dos > 0.0)
+
+
+def test_stoner_flavor_layer_fillings_sum_to_total_layer_filling():
+    from tdbg_scf.stoner.full_band import stoner_flavor_layer_fillings, stoner_layer_fillings
+
+    evals_K = np.array([[0.0, 2.0]])
+    evals_Kp = np.array([[1.0, 3.0]])
+    evecs = np.tile(np.eye(2, dtype=np.complex128), (1, 1, 1))
+    weights = np.array([1.0])
+    layer_masks = np.array([[1.0, 0.0], [0.0, 1.0]])
+    nu_f = np.array([1.0, 0.0, -1.0, 0.0])
+
+    per_flavor = stoner_flavor_layer_fillings(
+        evals_K,
+        evecs,
+        evals_Kp,
+        evecs,
+        weights,
+        layer_masks,
+        A_M_A2=1.0,
+        nu_f=nu_f,
+    )
+    total = stoner_layer_fillings(
+        evals_K,
+        evecs,
+        evals_Kp,
+        evecs,
+        weights,
+        layer_masks,
+        A_M_A2=1.0,
+        nu_f=nu_f,
+    )
+
+    assert per_flavor.shape == (4, 2)
+    assert np.allclose(np.sum(per_flavor, axis=0), total)
+    assert np.allclose(np.sum(per_flavor, axis=1), nu_f)
+
+
+def test_stoner_flavor_layer_dos_sums_to_total_layer_dos():
+    from tdbg_scf.stoner.full_band import stoner_flavor_layer_dos_at_mu, stoner_layer_dos_at_mu
+
+    evals_K = np.array([[0.0, 2.0]])
+    evals_Kp = np.array([[1.0, 3.0]])
+    evecs = np.tile(np.eye(2, dtype=np.complex128), (1, 1, 1))
+    weights = np.array([1.0])
+    layer_masks = np.array([[1.0, 0.0], [0.0, 1.0]])
+    mu_f = np.array([0.0, 1.0, 0.0, 1.0])
+
+    per_flavor = stoner_flavor_layer_dos_at_mu(
+        evals_K,
+        evecs,
+        evals_Kp,
+        evecs,
+        weights,
+        layer_masks,
+        mu_f,
+        sigma_meV=1.0,
+    )
+    total = stoner_layer_dos_at_mu(
+        evals_K,
+        evecs,
+        evals_Kp,
+        evecs,
+        weights,
+        layer_masks,
+        mu_f,
+        sigma_meV=1.0,
+    )
+
+    assert per_flavor.shape == (4, 2)
+    assert np.allclose(np.sum(per_flavor, axis=0), total)
+    assert np.all(per_flavor > 0.0)

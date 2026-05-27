@@ -30,6 +30,7 @@ for _path in (SCRIPT_DIR, REPO_ROOT):
         sys.path.insert(0, str(_path))
 
 from run_full_band_stoner import (
+    FLAVOR_NAMES,
     add_analysis_args,
     add_full_scf_args,
     add_hamiltonian_args,
@@ -179,6 +180,23 @@ def save_map_outputs(out: Path, rows: list[dict[str, Any]], n_values: list[float
         ("scf_residual_meV", "SCF residual (meV)"),
         ("scf_iterations", "SCF iterations"),
     ]
+    for flavor in FLAVOR_NAMES:
+        prefix = f"stoner_{flavor}"
+        plot_specs.extend(
+            [
+                (f"{prefix}_P_top_bottom_cm2", f"{flavor} Stoner top-bottom density polarization (cm^-2)"),
+                (f"{prefix}_P_outer_inner_cm2", f"{flavor} Stoner outer-inner density polarization (cm^-2)"),
+                (f"{prefix}_P_dipole_cm2", f"{flavor} Stoner density dipole scalar (cm^-2)"),
+                (f"{prefix}_layer_dos_L1", f"{flavor} Stoner layer DOS L1"),
+                (f"{prefix}_layer_dos_L2", f"{flavor} Stoner layer DOS L2"),
+                (f"{prefix}_layer_dos_L3", f"{flavor} Stoner layer DOS L3"),
+                (f"{prefix}_layer_dos_L4", f"{flavor} Stoner layer DOS L4"),
+                (f"{prefix}_layer_dos_total", f"{flavor} Stoner total layer DOS"),
+                (f"{prefix}_layer_dos_top_bottom", f"{flavor} Stoner top-bottom layer DOS"),
+                (f"{prefix}_layer_dos_outer_inner", f"{flavor} Stoner outer-inner layer DOS"),
+                (f"{prefix}_layer_dos_dipole", f"{flavor} Stoner layer DOS dipole scalar"),
+            ]
+        )
     for key, title in plot_specs:
         plot_nd_map(df, n_values, d_values, key, fig_dir / f"nd_map_{key}.png", title)
 
