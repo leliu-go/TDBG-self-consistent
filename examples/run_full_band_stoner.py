@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import math
 from pathlib import Path
 import sys
 import time
@@ -115,6 +116,9 @@ def add_analysis_args(ap: argparse.ArgumentParser) -> None:
     ap.add_argument("--dos-bins", type=int, default=240)
     ap.add_argument("--points-per-segment", type=int, default=60)
     ap.add_argument("--n-show-full", type=int, default=12)
+    ap.add_argument("--contour-n1", type=int, default=0, help="0 uses the SCF grid for full-band contour detail plots.")
+    ap.add_argument("--contour-n2", type=int, default=0, help="0 uses the SCF grid for full-band contour detail plots.")
+    ap.add_argument("--contour-band-count", type=int, default=6)
 
 
 def params_from_args(args: argparse.Namespace, valley: int) -> TDBGParameters:
@@ -341,6 +345,128 @@ def save_stoner_flavor_bands(out: Path, dist: np.ndarray, bands_K: np.ndarray, b
     fig.tight_layout()
     fig.savefig(out / "stoner_flavor_bands.png", dpi=220)
     plt.close(fig)
+
+
+def contour_band_indices(n_bands: int, count: int) -> list[int]:
+    count = max(1, min(int(count), int(n_bands)))
+    center = int(n_bands) // 2
+    start = max(0, center - count // 2)
+    end = min(int(n_bands), start + count)
+    start = max(0, end - count)
+    return list(range(start, end))
+
+
+def diagonalize_evals_only(ham: TDBGContinuumHamiltonian, kpts: np.ndarray, U_layer_meV: np.ndarray) -> np.ndarray:
+    evals = np.empty((len(kpts), ham.dim), dtype=float)
+    for ik, (kx, ky) in enumerate(kpts):
+        evals[ik] = np.linalg.eigvalsh(ham.hamiltonian(float(kx), float(ky), U_layer_meV))
+    return evals
+
+
+def plot_contour_panels(
+    out: Path,
+    filename: str,
+    kpts: np.ndarray,
+    panels: list[tuple[str, np.ndarray, float]],
+    band_indices: list[int],
+    title: str,
+) -> None:
+    n_panels = len(panels)
+    ncols = min(2, n_panels)
+    nrows = int(math.ceil(n_panels / ncols))
+    fig, axes = plt.subplots(nrows, ncols, figsize=(4.0 * ncols, 3.4 * nrows), squeeze=False)
+    x = kpts[:, 0]
+    y = kpts[:, 1]
+    for ax, (name, evals, mu) in zip(axes.ravel(), panels):
+        shifted = evals[:, band_indices] - float(mu)
+        nearest = np.min(np.abs(shifted), axis=1)
+        if len(kpts) >= 4:
+            levels = np.linspace(float(np.min(nearest)), float(np.max(nearest)), 41)
+            if np.isclose(levels[0], levels[-1]):
+                levels[-1] = levels[0] + 1e-12
+            cf = ax.tricontourf(x, y, nearest, levels=levels, cmap="viridis_r")
+            for band in band_indices:
+                z = evals[:, band] - float(mu)
+                if float(np.min(z)) <= 0.0 <= float(np.max(z)):
+                    ax.tricontour(x, y, z, levels=[0.0], colors="k", linewidths=0.8)
+            fig.colorbar(cf, ax=ax, shrink=0.82)
+        else:
+            sc = ax.scatter(x, y, c=nearest, cmap="viridis_r")
+            fig.colorbar(sc, ax=ax, shrink=0.82)
+        ax.set_title(name)
+        ax.set_aspect("equal", adjustable="box")
+        ax.set_xticks([])
+        ax.set_yticks([])
+        ax.set_xlabel(r"$k_x$")
+        ax.set_ylabel(r"$k_y$")
+    for ax in axes.ravel()[n_panels:]:
+        ax.axis("off")
+    fig.suptitle(title)
+    fig.tight_layout()
+    fig.savefig(out / filename, dpi=220)
+    plt.close(fig)
+
+
+def save_full_band_contours(
+    out: Path,
+    args: argparse.Namespace,
+    ham_K: TDBGContinuumHamiltonian,
+    ham_Kp: TDBGContinuumHamiltonian,
+    U_meV: np.ndarray,
+    scf_kpts: np.ndarray,
+    evals_K: np.ndarray,
+    evals_Kp: np.ndarray,
+    full_mu: float,
+    mu_f: np.ndarray,
+) -> None:
+    if args.contour_n1 > 0 and args.contour_n2 > 0:
+        contour_kpts, _ = make_uniform_mbz_grid(ham_K.geom, args.contour_n1, args.contour_n2)
+        contour_evals_K = diagonalize_evals_only(ham_K, contour_kpts, U_meV)
+        contour_evals_Kp = diagonalize_evals_only(ham_Kp, contour_kpts, U_meV)
+    else:
+        contour_kpts = scf_kpts
+        contour_evals_K = evals_K
+        contour_evals_Kp = evals_Kp
+
+    band_indices = contour_band_indices(contour_evals_K.shape[1], args.contour_band_count)
+    np.savez(
+        out / "full_band_contours_before_stoner.npz",
+        kpts=contour_kpts,
+        evals_K_meV=contour_evals_K,
+        evals_Kp_meV=contour_evals_Kp,
+        full_mu_meV=float(full_mu),
+        band_indices=np.asarray(band_indices, dtype=int),
+    )
+    plot_contour_panels(
+        out,
+        "full_band_contours_before_stoner.png",
+        contour_kpts,
+        [("K before Stoner", contour_evals_K, float(full_mu)), ("Kp before Stoner", contour_evals_Kp, float(full_mu))],
+        band_indices,
+        "Full-band contours before Stoner",
+    )
+
+    np.savez(
+        out / "full_band_contours_stoner_flavors.npz",
+        kpts=contour_kpts,
+        evals_K_meV=contour_evals_K,
+        evals_Kp_meV=contour_evals_Kp,
+        mu_f_meV=np.asarray(mu_f, dtype=float),
+        band_indices=np.asarray(band_indices, dtype=int),
+    )
+    plot_contour_panels(
+        out,
+        "full_band_contours_stoner_flavors.png",
+        contour_kpts,
+        [
+            ("K up after Stoner", contour_evals_K, float(mu_f[0])),
+            ("Kp up after Stoner", contour_evals_Kp, float(mu_f[1])),
+            ("K down after Stoner", contour_evals_K, float(mu_f[2])),
+            ("Kp down after Stoner", contour_evals_Kp, float(mu_f[3])),
+        ],
+        band_indices,
+        "Full-band contours after Stoner",
+    )
 
 
 def point_label(n_index: int, d_index: int, n_cm2: float, d_vnm: float) -> str:
@@ -584,6 +710,18 @@ def save_detail_outputs(
     plot_bands(dist_K, bands_K, ticks_K, labels_K, mu_meV=full_mu, n_show=args.n_show_full, title="Full bands K at SCF U", out=str(out / "full_bands_K.png"))
     plot_bands(dist_Kp, bands_Kp, ticks_Kp, labels_Kp, mu_meV=full_mu, n_show=args.n_show_full, title="Full bands K' at SCF U", out=str(out / "full_bands_Kp.png"))
     save_stoner_flavor_bands(out, dist_K, bands_K, bands_Kp, ticks_K, labels_K, mu_f, args.n_show_full)
+    save_full_band_contours(
+        out,
+        args,
+        ham_K,
+        ham_Kp,
+        scf.U_meV,
+        kpts,
+        evals_K,
+        evals_Kp,
+        full_mu,
+        mu_f,
+    )
 
 
 def parse_args() -> argparse.Namespace:

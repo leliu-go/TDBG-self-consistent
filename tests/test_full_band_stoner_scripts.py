@@ -40,6 +40,20 @@ def test_full_band_dos_summary_recomputes_full_mu_from_full_bands():
     assert summary["dos_mu_full_at_full_mu"] > summary["dos_mu_full_at_projected_mu"]
 
 
+def test_full_band_stoner_analysis_args_include_contour_controls():
+    import argparse
+
+    from examples.run_full_band_stoner import add_analysis_args
+
+    parser = argparse.ArgumentParser()
+    add_analysis_args(parser)
+    args = parser.parse_args([])
+
+    assert args.contour_n1 == 0
+    assert args.contour_n2 == 0
+    assert args.contour_band_count == 6
+
+
 def test_single_point_full_band_stoner_help():
     result = subprocess.run(
         [sys.executable, "examples/run_full_band_stoner.py", "--help"],
@@ -53,6 +67,7 @@ def test_single_point_full_band_stoner_help():
     assert "--n-active" in result.stdout
     assert "--u0-meV-A2" in result.stdout
     assert "--D-Vnm" in result.stdout
+    assert "--contour-n1" in result.stdout
 
 
 def test_nd_mapping_full_band_stoner_help():
@@ -67,3 +82,4 @@ def test_nd_mapping_full_band_stoner_help():
     assert "--scf-source" in result.stdout
     assert "--n-count" in result.stdout
     assert "--max-workers" in result.stdout
+    assert "--contour-n1" in result.stdout
