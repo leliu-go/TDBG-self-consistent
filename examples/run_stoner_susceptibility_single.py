@@ -49,6 +49,19 @@ def add_scf_reference_args(ap: argparse.ArgumentParser) -> None:
     ap.add_argument("--initial-U", choices=["uploaded", "bare", "zero"], default=None)
 
 
+def add_bool_optional_arg(ap: argparse.ArgumentParser, name: str, *, default: bool) -> None:
+    dest = name.replace("-", "_")
+    option = f"--{name}"
+    no_option = f"--no-{name}"
+    if hasattr(argparse, "BooleanOptionalAction"):
+        ap.add_argument(option, action=argparse.BooleanOptionalAction, default=default)
+        return
+    group = ap.add_mutually_exclusive_group()
+    group.add_argument(option, dest=dest, action="store_true")
+    group.add_argument(no_option, dest=dest, action="store_false")
+    ap.set_defaults(**{dest: bool(default)})
+
+
 def build_parser() -> argparse.ArgumentParser:
     ap = argparse.ArgumentParser(description="Finite-Q transverse susceptibility on a Stoner-after TDBG state")
     ap.add_argument("--n-cm2", type=float, required=True)
@@ -75,11 +88,11 @@ def build_parser() -> argparse.ArgumentParser:
     ap.add_argument("--energy-window-meV", type=float, default=30.0)
     ap.add_argument("--max-bands-per-k", type=int, default=24)
     ap.add_argument("--main-vertex-model", choices=["su4_diag", "su2_hund_factor2"], default="su4_diag")
-    ap.add_argument("--also-run-hund-factor2", action=argparse.BooleanOptionalAction, default=True)
+    add_bool_optional_arg(ap, "also-run-hund-factor2", default=True)
     ap.add_argument("--hund-transverse-factor", type=float, default=2.0)
     ap.add_argument("--occupation-mode", choices=["flavor_mu", "common_mu"], default="flavor_mu")
     ap.add_argument("--spin-flip-mode", choices=["plus", "minus", "both_pm"], default="both_pm")
-    ap.add_argument("--legacy-diagnostics", action=argparse.BooleanOptionalAction, default=True)
+    add_bool_optional_arg(ap, "legacy-diagnostics", default=True)
     ap.add_argument("--q-mode", choices=["folded_grid", "unfolded_diagonalize", "folded_grid_with_G_shift"], default="folded_grid")
     ap.add_argument("--q-stride", type=int, default=1)
     ap.add_argument("--max-abs-q-step", type=int, default=None)

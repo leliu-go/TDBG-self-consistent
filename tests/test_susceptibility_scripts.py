@@ -1,5 +1,6 @@
 import subprocess
 import sys
+import argparse
 
 
 def test_single_point_susceptibility_help():
@@ -130,3 +131,46 @@ def test_nd_mapping_susceptibility_can_build_direct_nd_grid(tmp_path):
     assert list(source["n_cm2"]) == [-1e12, -1e12, 0.0, 0.0, 1e12, 1e12]
     assert list(source["D_Vnm"]) == [-0.2, 0.2, -0.2, 0.2, -0.2, 0.2]
     assert "nu_total" in source.columns
+
+
+def test_susceptibility_boolean_flags_work_without_boolean_optional_action(monkeypatch, tmp_path):
+    from examples.run_nd_mapping_stoner_susceptibility import build_parser as build_nd_parser
+    from examples.run_stoner_susceptibility_single import build_parser as build_single_parser
+
+    monkeypatch.delattr(argparse, "BooleanOptionalAction", raising=False)
+
+    nd_args = build_nd_parser().parse_args(
+        [
+            "--out-csv",
+            str(tmp_path / "chi.csv"),
+            "--n-min-cm2=0",
+            "--n-max-cm2",
+            "0",
+            "--n-count",
+            "1",
+            "--D-min-Vnm=0",
+            "--D-max-Vnm",
+            "0",
+            "--D-count",
+            "1",
+            "--no-also-run-hund-factor2",
+            "--no-legacy-diagnostics",
+        ]
+    )
+    single_args = build_single_parser().parse_args(
+        [
+            "--n-cm2",
+            "0",
+            "--D-Vnm",
+            "0",
+            "--out",
+            str(tmp_path / "single"),
+            "--no-also-run-hund-factor2",
+            "--no-legacy-diagnostics",
+        ]
+    )
+
+    assert nd_args.also_run_hund_factor2 is False
+    assert nd_args.legacy_diagnostics is False
+    assert single_args.also_run_hund_factor2 is False
+    assert single_args.legacy_diagnostics is False
