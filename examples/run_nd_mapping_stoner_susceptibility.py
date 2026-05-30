@@ -3,8 +3,11 @@ from __future__ import annotations
 
 import argparse
 from concurrent.futures import ProcessPoolExecutor, as_completed
+from datetime import datetime
+import json
 import os
 from pathlib import Path
+import platform
 import sys
 import time
 
@@ -66,10 +69,28 @@ def add_bool_optional_arg(ap: argparse.ArgumentParser, name: str, *, default: bo
     ap.set_defaults(**{dest: bool(default)})
 
 
+def _jsonable(value):
+    if isinstance(value, Path):
+        return str(value)
+    if isinstance(value, np.generic):
+        return value.item()
+    if isinstance(value, dict):
+        return {str(k): _jsonable(v) for k, v in value.items()}
+    if isinstance(value, (list, tuple)):
+        return [_jsonable(v) for v in value]
+    return value
+
+
+def write_json(path: Path, data) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(json.dumps(_jsonable(data), indent=2), encoding="utf-8")
+
+
 def build_parser() -> argparse.ArgumentParser:
     ap = argparse.ArgumentParser(description="Add finite-Q Stoner-after susceptibility diagnostics to an n-D map")
     ap.add_argument("--input-map", type=Path, default=None, help="Optional existing n-D CSV. If omitted, use direct n/D grid args.")
-    ap.add_argument("--out-csv", type=Path, required=True)
+    ap.add_argument("--out", type=Path, default=None, help="Output directory. Defaults to outputs/nd_mapping_stoner_susceptibility_<timestamp>.")
+    ap.add_argument("--out-csv", type=Path, default=None, help="Main CSV path. If --out is used, relative paths are resolved inside --out.")
     ap.add_argument("--resume", action="store_true")
     ap.add_argument("--n-min-cm2", type=float, default=None)
     ap.add_argument("--n-max-cm2", type=float, default=None)
@@ -161,6 +182,24 @@ def load_source_dataframe(args: argparse.Namespace) -> pd.DataFrame:
     if args.input_map is not None:
         return pd.read_csv(args.input_map)
     return build_direct_nd_grid(args)
+
+
+def resolve_output_layout(args: argparse.Namespace, stamp: str | None = None) -> tuple[Path, Path]:
+    if stamp is None:
+        stamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+    if args.out is not None:
+        out_dir = Path(args.out)
+        if args.out_csv is None:
+            out_csv = out_dir / "finite_q_susceptibility.csv"
+        else:
+            out_csv_arg = Path(args.out_csv)
+            out_csv = out_csv_arg if out_csv_arg.is_absolute() else out_dir / out_csv_arg
+        return out_dir, out_csv
+    if args.out_csv is not None:
+        out_csv = Path(args.out_csv)
+        return out_csv.parent, out_csv
+    out_dir = Path("outputs") / f"nd_mapping_stoner_susceptibility_{stamp}"
+    return out_dir, out_dir / "finite_q_susceptibility.csv"
 
 
 def filter_rows(df: pd.DataFrame, args: argparse.Namespace) -> pd.DataFrame:
@@ -291,16 +330,80 @@ def save_records(path: Path, records: list[dict]) -> None:
     df.to_csv(path, index=False)
 
 
+def make_run_summary(
+    *,
+    status: str,
+    out_dir: Path,
+    out_csv: Path,
+    source_count: int,
+    todo_count: int,
+    pending_count: int,
+    records: list[dict],
+    started: float,
+    workers: int,
+) -> dict:
+    ok_points = sum(1 for row in records if row.get("chi_status") == "ok")
+    error_points = sum(1 for row in records if row.get("chi_status") == "error")
+    return {
+        "status": status,
+        "updated_at": datetime.now().isoformat(timespec="seconds"),
+        "out": str(out_dir),
+        "out_csv": str(out_csv),
+        "source_points": int(source_count),
+        "todo_points": int(todo_count),
+        "pending_points": int(pending_count),
+        "recorded_points": int(len(records)),
+        "ok_points": int(ok_points),
+        "error_points": int(error_points),
+        "workers": int(workers),
+        "runtime_s": float(time.time() - started),
+    }
+
+
+def write_run_summary(
+    out_dir: Path,
+    *,
+    status: str,
+    out_csv: Path,
+    source_count: int,
+    todo_count: int,
+    pending_count: int,
+    records: list[dict],
+    started: float,
+    workers: int,
+) -> dict:
+    summary = make_run_summary(
+        status=status,
+        out_dir=out_dir,
+        out_csv=out_csv,
+        source_count=source_count,
+        todo_count=todo_count,
+        pending_count=pending_count,
+        records=records,
+        started=started,
+        workers=workers,
+    )
+    write_json(out_dir / "run_summary.json", summary)
+    return summary
+
+
 def main() -> None:
     args = build_parser().parse_args()
-    args.out_csv.parent.mkdir(parents=True, exist_ok=True)
+    started = time.time()
+    out_dir, out_csv = resolve_output_layout(args)
+    args.out = out_dir
+    args.out_csv = out_csv
+    out_dir.mkdir(parents=True, exist_ok=True)
+    out_csv.parent.mkdir(parents=True, exist_ok=True)
     source = load_source_dataframe(args)
     todo = filter_rows(source, args)
     workers = resolve_workers(args.max_workers)
+    source.to_csv(out_dir / "source_grid.csv", index=False)
+    todo.to_csv(out_dir / "todo_grid.csv", index=False)
 
     done_keys = set()
-    if args.resume and args.out_csv.exists():
-        old = pd.read_csv(args.out_csv)
+    if args.resume and out_csv.exists():
+        old = pd.read_csv(out_csv)
         for _, row in old.iterrows():
             done_keys.add(row_key(row))
         records = old.to_dict("records")
@@ -317,6 +420,31 @@ def main() -> None:
         row_data["_chi_input_order"] = int(count)
         pending.append(row_data)
 
+    config = {
+        "created_at": datetime.now().isoformat(timespec="seconds"),
+        "command": " ".join(sys.argv),
+        "platform": {"platform": platform.platform(), "python": sys.version, "cpu_count": os.cpu_count()},
+        "args": vars(args),
+        "source_points": int(len(source)),
+        "todo_points": int(len(todo)),
+        "pending_points": int(len(pending)),
+        "existing_records_loaded": int(len(records)),
+        "max_workers_resolved": int(workers),
+        "thread_env": {k: os.environ.get(k) for k in ("OMP_NUM_THREADS", "OPENBLAS_NUM_THREADS", "MKL_NUM_THREADS", "NUMEXPR_NUM_THREADS")},
+    }
+    write_json(out_dir / "config_used.json", config)
+    write_run_summary(
+        out_dir,
+        status="running",
+        out_csv=out_csv,
+        source_count=len(source),
+        todo_count=len(todo),
+        pending_count=len(pending),
+        records=records,
+        started=started,
+        workers=workers,
+    )
+
     print(f"pending points: {len(pending)}; workers: {workers}", flush=True)
     if workers == 1:
         for index, row_data in enumerate(pending, start=1):
@@ -327,7 +455,18 @@ def main() -> None:
             )
             rec = run_chi_task(row_data, args)
             records.append(rec)
-            save_records(args.out_csv, records)
+            save_records(out_csv, records)
+            write_run_summary(
+                out_dir,
+                status="running",
+                out_csv=out_csv,
+                source_count=len(source),
+                todo_count=len(todo),
+                pending_count=len(pending) - index,
+                records=records,
+                started=started,
+                workers=workers,
+            )
             print(f"[{index}/{len(pending)}] {rec.get('chi_status')} runtime={rec.get('chi_runtime_s', 0.0):.1f}s", flush=True)
     else:
         with ProcessPoolExecutor(max_workers=workers) as pool:
@@ -335,7 +474,18 @@ def main() -> None:
             for index, future in enumerate(as_completed(futures), start=1):
                 rec = future.result()
                 records.append(rec)
-                save_records(args.out_csv, records)
+                save_records(out_csv, records)
+                write_run_summary(
+                    out_dir,
+                    status="running",
+                    out_csv=out_csv,
+                    source_count=len(source),
+                    todo_count=len(todo),
+                    pending_count=len(pending) - index,
+                    records=records,
+                    started=started,
+                    workers=workers,
+                )
                 print(
                     f"[{index}/{len(pending)}] {rec.get('chi_status')} "
                     f"n={float(rec['n_cm2']):.6e} D={float(rec['D_Vnm']):.4f} "
@@ -343,7 +493,20 @@ def main() -> None:
                     flush=True,
                 )
 
-    print("saved", args.out_csv)
+    final_status = "completed" if not any(row.get("chi_status") == "error" for row in records) else "completed_with_errors"
+    summary = write_run_summary(
+        out_dir,
+        status=final_status,
+        out_csv=out_csv,
+        source_count=len(source),
+        todo_count=len(todo),
+        pending_count=0,
+        records=records,
+        started=started,
+        workers=workers,
+    )
+    print("saved", out_csv)
+    print(json.dumps(_jsonable(summary), indent=2))
 
 
 if __name__ == "__main__":

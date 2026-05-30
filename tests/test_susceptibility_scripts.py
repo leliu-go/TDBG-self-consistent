@@ -45,6 +45,7 @@ def test_nd_mapping_susceptibility_help():
     assert "--projected-reference-mode" in result.stdout
     assert "--n-min-cm2" in result.stdout
     assert "--D-min-Vnm" in result.stdout
+    assert "--out" in result.stdout
 
 
 def test_nd_mapping_susceptibility_resolves_worker_count():
@@ -131,6 +132,33 @@ def test_nd_mapping_susceptibility_can_build_direct_nd_grid(tmp_path):
     assert list(source["n_cm2"]) == [-1e12, -1e12, 0.0, 0.0, 1e12, 1e12]
     assert list(source["D_Vnm"]) == [-0.2, 0.2, -0.2, 0.2, -0.2, 0.2]
     assert "nu_total" in source.columns
+
+
+def test_nd_mapping_susceptibility_out_dir_sets_default_csv(tmp_path):
+    from examples.run_nd_mapping_stoner_susceptibility import build_parser, resolve_output_layout
+
+    out_dir = tmp_path / "finite_q_run"
+    args = build_parser().parse_args(
+        [
+            "--out",
+            str(out_dir),
+            "--n-min-cm2=0",
+            "--n-max-cm2",
+            "0",
+            "--n-count",
+            "1",
+            "--D-min-Vnm=0",
+            "--D-max-Vnm",
+            "0",
+            "--D-count",
+            "1",
+        ]
+    )
+
+    resolved_out, resolved_csv = resolve_output_layout(args, stamp="fixed")
+
+    assert resolved_out == out_dir
+    assert resolved_csv == out_dir / "finite_q_susceptibility.csv"
 
 
 def test_susceptibility_boolean_flags_work_without_boolean_optional_action(monkeypatch, tmp_path):
