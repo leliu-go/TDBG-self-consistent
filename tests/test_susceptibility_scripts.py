@@ -42,6 +42,8 @@ def test_nd_mapping_susceptibility_help():
     assert "--n-active" in result.stdout
     assert "--selection" in result.stdout
     assert "--projected-reference-mode" in result.stdout
+    assert "--n-min-cm2" in result.stdout
+    assert "--D-min-Vnm" in result.stdout
 
 
 def test_nd_mapping_susceptibility_resolves_worker_count():
@@ -98,3 +100,33 @@ def test_single_point_susceptibility_keeps_legacy_scf_iteration_alias_separate(t
     assert args.legacy_scf_tol_meV == 2e-3
     assert args.projected_max_iter == 100
     assert args.projected_tol_meV == 1e-4
+
+
+def test_nd_mapping_susceptibility_can_build_direct_nd_grid(tmp_path):
+    from examples.run_nd_mapping_stoner_susceptibility import build_parser, load_source_dataframe
+
+    args = build_parser().parse_args(
+        [
+            "--out-csv",
+            str(tmp_path / "chi.csv"),
+            "--n-min-cm2=-1e12",
+            "--n-max-cm2",
+            "1e12",
+            "--n-count",
+            "3",
+            "--D-min-Vnm=-0.2",
+            "--D-max-Vnm",
+            "0.2",
+            "--D-count",
+            "2",
+        ]
+    )
+
+    source = load_source_dataframe(args)
+
+    assert args.input_map is None
+    assert list(source["n_index"]) == [0, 0, 1, 1, 2, 2]
+    assert list(source["D_index"]) == [0, 1, 0, 1, 0, 1]
+    assert list(source["n_cm2"]) == [-1e12, -1e12, 0.0, 0.0, 1e12, 1e12]
+    assert list(source["D_Vnm"]) == [-0.2, 0.2, -0.2, 0.2, -0.2, 0.2]
+    assert "nu_total" in source.columns

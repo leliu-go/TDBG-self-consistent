@@ -11,12 +11,15 @@ import time
 for _var in ("OMP_NUM_THREADS", "OPENBLAS_NUM_THREADS", "MKL_NUM_THREADS", "NUMEXPR_NUM_THREADS"):
     os.environ.setdefault(_var, "1")
 
+import numpy as np
 import pandas as pd
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 if str(REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(REPO_ROOT))
 
+from tdbg_scf.filling import density_cm2_to_filling
+from tdbg_scf.lattice import MoireGeometry
 from tdbg_scf.susceptibility import (
     SusceptibilityParams,
     scan_q_for_state,
@@ -52,9 +55,15 @@ def add_scf_reference_args(ap: argparse.ArgumentParser) -> None:
 
 def build_parser() -> argparse.ArgumentParser:
     ap = argparse.ArgumentParser(description="Add finite-Q Stoner-after susceptibility diagnostics to an n-D map")
-    ap.add_argument("--input-map", type=Path, required=True)
+    ap.add_argument("--input-map", type=Path, default=None, help="Optional existing n-D CSV. If omitted, use direct n/D grid args.")
     ap.add_argument("--out-csv", type=Path, required=True)
     ap.add_argument("--resume", action="store_true")
+    ap.add_argument("--n-min-cm2", type=float, default=None)
+    ap.add_argument("--n-max-cm2", type=float, default=None)
+    ap.add_argument("--n-count", type=int, default=None)
+    ap.add_argument("--D-min-Vnm", type=float, default=None)
+    ap.add_argument("--D-max-Vnm", type=float, default=None)
+    ap.add_argument("--D-count", type=int, default=None)
     ap.add_argument("--nu-min", type=float, default=None)
     ap.add_argument("--nu-max", type=float, default=None)
     ap.add_argument("--D-min", type=float, default=None)
@@ -97,11 +106,59 @@ def build_parser() -> argparse.ArgumentParser:
     return ap
 
 
+def _required_direct_grid_arg(args: argparse.Namespace, name: str) -> float | int:
+    value = getattr(args, name)
+    if value is None:
+        opt = "--" + name.replace("_", "-")
+        raise ValueError(f"{opt} is required when --input-map is omitted")
+    return value
+
+
+def build_direct_nd_grid(args: argparse.Namespace) -> pd.DataFrame:
+    n_min = float(_required_direct_grid_arg(args, "n_min_cm2"))
+    n_max = float(_required_direct_grid_arg(args, "n_max_cm2"))
+    n_count = int(_required_direct_grid_arg(args, "n_count"))
+    D_min = float(_required_direct_grid_arg(args, "D_min_Vnm"))
+    D_max = float(_required_direct_grid_arg(args, "D_max_Vnm"))
+    D_count = int(_required_direct_grid_arg(args, "D_count"))
+    if n_count < 1 or D_count < 1:
+        raise ValueError("--n-count and --D-count must be >= 1")
+
+    n_values = np.linspace(n_min, n_max, n_count)
+    D_values = np.linspace(D_min, D_max, D_count)
+    geom = MoireGeometry(theta_deg=float(args.theta_deg), a_cc_A=float(args.a_cc_A), valley=int(args.scf_valley))
+    A_M_A2 = float((2.0 * np.pi) ** 2 / geom.mBZ_area_A2_inv)
+
+    rows = []
+    for ni, n_cm2 in enumerate(n_values):
+        for Di, D_Vnm in enumerate(D_values):
+            rows.append(
+                {
+                    "n_index": int(ni),
+                    "D_index": int(Di),
+                    "n_cm2": float(n_cm2),
+                    "D_Vnm": float(D_Vnm),
+                    "nu_total": float(density_cm2_to_filling(float(n_cm2), A_M_A2)),
+                }
+            )
+    return pd.DataFrame(rows)
+
+
+def load_source_dataframe(args: argparse.Namespace) -> pd.DataFrame:
+    if args.input_map is not None:
+        return pd.read_csv(args.input_map)
+    return build_direct_nd_grid(args)
+
+
 def filter_rows(df: pd.DataFrame, args: argparse.Namespace) -> pd.DataFrame:
     out = df.copy()
     if args.nu_min is not None:
+        if "nu_total" not in out.columns:
+            raise ValueError("--nu-min requires a nu_total column")
         out = out[out["nu_total"] >= float(args.nu_min)]
     if args.nu_max is not None:
+        if "nu_total" not in out.columns:
+            raise ValueError("--nu-max requires a nu_total column")
         out = out[out["nu_total"] <= float(args.nu_max)]
     if args.D_min is not None:
         out = out[out["D_Vnm"] >= float(args.D_min)]
@@ -224,7 +281,7 @@ def save_records(path: Path, records: list[dict]) -> None:
 def main() -> None:
     args = build_parser().parse_args()
     args.out_csv.parent.mkdir(parents=True, exist_ok=True)
-    source = pd.read_csv(args.input_map)
+    source = load_source_dataframe(args)
     todo = filter_rows(source, args)
     workers = resolve_workers(args.max_workers)
 
