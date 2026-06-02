@@ -2,6 +2,7 @@
 
 from .bubble import ChiQResult, compute_transverse_chi_q
 from .params import SusceptibilityParams
+from .plotting import plot_finite_q_outputs, plot_nd_map
 from .qmesh import QPoint, folded_indices_for_q, make_commensurate_q_points
 from .stoner_reference import StonerReference, make_stoner_reference, stoner_self_energy_shifts_meV
 from .vertex import VertexSpec, generalized_stoner_lambda, make_valley_vertex_models
@@ -16,6 +17,8 @@ from .workflow import (
 __all__ = [
     "SusceptibilityParams",
     "QPoint",
+    "plot_finite_q_outputs",
+    "plot_nd_map",
     "make_commensurate_q_points",
     "folded_indices_for_q",
     "StonerReference",

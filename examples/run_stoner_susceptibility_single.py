@@ -9,10 +9,20 @@ import matplotlib
 
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
+import numpy as np
 
-REPO_ROOT = Path(__file__).resolve().parents[1]
-if str(REPO_ROOT) not in sys.path:
-    sys.path.insert(0, str(REPO_ROOT))
+SCRIPT_DIR = Path(__file__).resolve().parent
+REPO_ROOT = SCRIPT_DIR.parents[0]
+for _path in (SCRIPT_DIR, REPO_ROOT):
+    if str(_path) not in sys.path:
+        sys.path.insert(0, str(_path))
+
+from run_full_band_stoner import (
+    FLAVOR_NAMES,
+    full_band_dos_summary,
+    layer_dos_polarizations,
+    save_detail_outputs,
+)
 
 from tdbg_scf.susceptibility import (
     SusceptibilityParams,
@@ -22,6 +32,14 @@ from tdbg_scf.susceptibility import (
     summarize_q_scan,
 )
 from tdbg_scf.susceptibility.workflow import write_single_point_outputs
+from tdbg_scf.filling import filling_to_density_cm2
+from tdbg_scf.stoner.full_band import (
+    explicit_flavor_dos_at_mu,
+    layer_polarizations,
+    stoner_flavor_layer_dos_at_mu,
+    stoner_flavor_layer_fillings,
+    stoner_mu_by_flavor,
+)
 
 
 def add_scf_reference_args(ap: argparse.ArgumentParser) -> None:
@@ -62,6 +80,152 @@ def add_bool_optional_arg(ap: argparse.ArgumentParser, name: str, *, default: bo
     ap.set_defaults(**{dest: bool(default)})
 
 
+def add_stoner_detail_args(ap: argparse.ArgumentParser) -> None:
+    ap.add_argument("--dos-sigma-meV", type=float, default=1.0)
+    ap.add_argument("--dos-emin-meV", type=float, default=-80.0)
+    ap.add_argument("--dos-emax-meV", type=float, default=80.0)
+    ap.add_argument("--dos-bins", type=int, default=240)
+    ap.add_argument("--points-per-segment", type=int, default=60)
+    ap.add_argument("--n-show-full", type=int, default=12)
+    ap.add_argument("--contour-n1", type=int, default=0, help="0 uses the SCF grid for contour plots.")
+    ap.add_argument("--contour-n2", type=int, default=0, help="0 uses the SCF grid for contour plots.")
+    ap.add_argument("--contour-band-count", type=int, default=6)
+    ap.add_argument("--no-stoner-detail-outputs", action="store_true")
+
+
+def stoner_detail_row(state, args: argparse.Namespace) -> dict:
+    scf = state.scf_result
+    stoner = state.stoner_result
+    mu_f = stoner_mu_by_flavor(stoner, state.tables)
+    stoner_flavor_nu_layer = stoner_flavor_layer_fillings(
+        state.evals_K_meV,
+        state.evecs_K,
+        state.evals_Kp_meV,
+        state.evecs_Kp,
+        state.weights,
+        state.layer_masks,
+        state.A_M_A2,
+        stoner.nu_f,
+    )
+    stoner_nu_layer = np.sum(stoner_flavor_nu_layer, axis=0)
+    stoner_flavor_n_layer_cm2 = np.asarray(
+        [[filling_to_density_cm2(x, state.A_M_A2) for x in flavor_layer] for flavor_layer in stoner_flavor_nu_layer],
+        dtype=float,
+    )
+    stoner_n_layer_cm2 = np.asarray([filling_to_density_cm2(x, state.A_M_A2) for x in stoner_nu_layer], dtype=float)
+    stoner_flavor_layer_dos = stoner_flavor_layer_dos_at_mu(
+        state.evals_K_meV,
+        state.evecs_K,
+        state.evals_Kp_meV,
+        state.evecs_Kp,
+        state.weights,
+        state.layer_masks,
+        mu_f,
+        args.dos_sigma_meV,
+    )
+    stoner_layer_dos = np.sum(stoner_flavor_layer_dos, axis=0)
+    n_layer_cm2 = np.asarray(scf.n_layer_cm2, dtype=float)
+    full_dos = full_band_dos_summary(
+        state.evals_K_meV,
+        state.evals_Kp_meV,
+        state.weights,
+        n_cm2=state.n_cm2,
+        projected_mu_meV=scf.mu_meV,
+        sigma_meV=args.dos_sigma_meV,
+        kBT_meV=args.kBT_meV,
+    )
+    meta = state.metadata()
+    row = {
+        "status": "ok",
+        "label": "single_point",
+        "scf_source": meta.get("scf_source", ""),
+        "scf_reference_mode": meta.get("scf_reference_mode", ""),
+        "n_index": 0,
+        "D_index": 0,
+        "n_cm2": float(state.n_cm2),
+        "nu_total": float(state.nu_total),
+        "D_Vnm": float(state.D_Vnm),
+        "A_M_A2": float(state.A_M_A2),
+        "scf_mu_meV": float(scf.mu_meV),
+        "scf_converged": bool(scf.converged),
+        "scf_residual_meV": float(scf.residual_meV),
+        "scf_iterations": int(scf.iterations),
+        "full_mu_meV": full_dos["full_mu_meV"],
+        "full_converged": bool(scf.converged),
+        "full_residual_meV": float(scf.residual_meV),
+        "full_iterations": int(scf.iterations),
+        "stoner_success": bool(stoner.success),
+        "stoner_seed": stoner.seed_name,
+        "stoner_energy_meV_per_cell": float(stoner.energy_meV_per_cell),
+        "nu_K_up": float(stoner.nu_f[0]),
+        "nu_Kp_up": float(stoner.nu_f[1]),
+        "nu_K_down": float(stoner.nu_f[2]),
+        "nu_Kp_down": float(stoner.nu_f[3]),
+        "mu_K_up_meV": float(mu_f[0]),
+        "mu_Kp_up_meV": float(mu_f[1]),
+        "mu_K_down_meV": float(mu_f[2]),
+        "mu_Kp_down_meV": float(mu_f[3]),
+        "spin_polarization": stoner.spin_polarization,
+        "spin_polarization_norm": stoner.spin_polarization_norm,
+        "valley_polarization": stoner.valley_polarization,
+        "valley_polarization_norm": stoner.valley_polarization_norm,
+        "spin_valley_polarization": stoner.spin_valley_polarization,
+        "spin_valley_polarization_norm": stoner.spin_valley_polarization_norm,
+        "flavor_polarization": stoner.flavor_polarization,
+        "dos_mu_scf": full_dos["dos_mu_full_at_full_mu"],
+        "dos_mu_full_scf": full_dos["dos_mu_full_at_full_mu"],
+        "dos_mu_full_at_full_mu": full_dos["dos_mu_full_at_full_mu"],
+        "dos_mu_full_at_projected_mu": full_dos["dos_mu_full_at_projected_mu"],
+        "dos_mu_stoner": explicit_flavor_dos_at_mu(
+            state.evals_K_meV,
+            state.evals_Kp_meV,
+            state.weights,
+            mu_f,
+            args.dos_sigma_meV,
+        ),
+        "U1_meV": float(scf.U_meV[0]),
+        "U2_meV": float(scf.U_meV[1]),
+        "U3_meV": float(scf.U_meV[2]),
+        "U4_meV": float(scf.U_meV[3]),
+        "n1_cm2": float(n_layer_cm2[0]),
+        "n2_cm2": float(n_layer_cm2[1]),
+        "n3_cm2": float(n_layer_cm2[2]),
+        "n4_cm2": float(n_layer_cm2[3]),
+        "stoner_n1_cm2": float(stoner_n_layer_cm2[0]),
+        "stoner_n2_cm2": float(stoner_n_layer_cm2[1]),
+        "stoner_n3_cm2": float(stoner_n_layer_cm2[2]),
+        "stoner_n4_cm2": float(stoner_n_layer_cm2[3]),
+        "stoner_n_total_layer_cm2": float(np.sum(stoner_n_layer_cm2)),
+        "stoner_layer_dos_L1": float(stoner_layer_dos[0]),
+        "stoner_layer_dos_L2": float(stoner_layer_dos[1]),
+        "stoner_layer_dos_L3": float(stoner_layer_dos[2]),
+        "stoner_layer_dos_L4": float(stoner_layer_dos[3]),
+    }
+    row.update(layer_polarizations(n_layer_cm2))
+    row.update({f"stoner_{key}": value for key, value in layer_polarizations(stoner_n_layer_cm2).items()})
+    row.update(
+        {
+            "stoner_layer_dos_total": float(np.sum(stoner_layer_dos)),
+            "stoner_layer_dos_top_bottom": float((stoner_layer_dos[0] + stoner_layer_dos[1]) - (stoner_layer_dos[2] + stoner_layer_dos[3])),
+            "stoner_layer_dos_outer_inner": float((stoner_layer_dos[0] + stoner_layer_dos[3]) - (stoner_layer_dos[1] + stoner_layer_dos[2])),
+            "stoner_layer_dos_dipole": float(1.5 * stoner_layer_dos[0] + 0.5 * stoner_layer_dos[1] - 0.5 * stoner_layer_dos[2] - 1.5 * stoner_layer_dos[3]),
+        }
+    )
+    for flavor_index, flavor_name in enumerate(FLAVOR_NAMES):
+        flavor_n = stoner_flavor_n_layer_cm2[flavor_index]
+        flavor_dos = stoner_flavor_layer_dos[flavor_index]
+        flavor_prefix = f"stoner_{flavor_name}"
+        for layer_index in range(4):
+            row[f"{flavor_prefix}_n{layer_index + 1}_cm2"] = float(flavor_n[layer_index])
+            row[f"{flavor_prefix}_layer_dos_L{layer_index + 1}"] = float(flavor_dos[layer_index])
+        for key, value in layer_polarizations(flavor_n).items():
+            row[f"{flavor_prefix}_{key}"] = value
+        row[f"{flavor_prefix}_layer_dos_total"] = float(np.sum(flavor_dos))
+        for key, value in layer_dos_polarizations(flavor_dos).items():
+            row[f"{flavor_prefix}_{key}"] = value
+    return row
+
+
 def build_parser() -> argparse.ArgumentParser:
     ap = argparse.ArgumentParser(description="Finite-Q transverse susceptibility on a Stoner-after TDBG state")
     ap.add_argument("--n-cm2", type=float, required=True)
@@ -97,6 +261,7 @@ def build_parser() -> argparse.ArgumentParser:
     ap.add_argument("--q-stride", type=int, default=1)
     ap.add_argument("--max-abs-q-step", type=int, default=None)
     ap.add_argument("--no-layer-matrix", action="store_true")
+    add_stoner_detail_args(ap)
     ap.add_argument("--out", type=Path, required=True)
     return ap
 
@@ -181,6 +346,25 @@ def main() -> None:
     cb.set_label(r"$\lambda_{U+J}(Q)$")
     fig.savefig(args.out / "susceptibility_qmap.png", dpi=180)
     plt.close(fig)
+
+    if not args.no_stoner_detail_outputs:
+        row = stoner_detail_row(state, args)
+        save_detail_outputs(
+            args.out,
+            row,
+            args,
+            state.ham_K,
+            state.ham_Kp,
+            state.kpts,
+            state.weights,
+            state.scf_result,
+            state.evals_K_meV,
+            state.evals_Kp_meV,
+            state.evecs_K,
+            state.evecs_Kp,
+            state.stoner_result,
+            state.tables,
+        )
 
     print("Saved:", args.out)
     print(summary)

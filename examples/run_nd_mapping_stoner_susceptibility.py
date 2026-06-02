@@ -25,6 +25,7 @@ from tdbg_scf.filling import density_cm2_to_filling
 from tdbg_scf.lattice import MoireGeometry
 from tdbg_scf.susceptibility import (
     SusceptibilityParams,
+    plot_finite_q_outputs,
     scan_q_for_state,
     solve_full_scf_stoner_state,
     summarize_q_scan,
@@ -136,6 +137,9 @@ def build_parser() -> argparse.ArgumentParser:
     ap.add_argument("--q-stride", type=int, default=1)
     ap.add_argument("--max-abs-q-step", type=int, default=None)
     ap.add_argument("--no-layer-matrix", action="store_true")
+    ap.add_argument("--no-plots", action="store_true", help="Do not generate figures after the run finishes.")
+    ap.add_argument("--figures-dir", type=Path, default=None, help="Figure directory. Defaults to <out>/figures.")
+    ap.add_argument("--plot-keys", type=str, default=None, help="Comma-separated finite-Q CSV columns to plot.")
     ap.add_argument("--max-workers", type=str, default="auto", help="'auto' or an integer process count.")
     return ap
 
@@ -387,6 +391,29 @@ def write_run_summary(
     return summary
 
 
+def format_progress_message(
+    *,
+    completed_this_run: int,
+    pending_total: int,
+    recorded_total: int,
+    todo_total: int,
+    rec: dict,
+) -> str:
+    return (
+        f"[{int(completed_this_run)}/{int(pending_total)}] "
+        f"[recorded {int(recorded_total)}/{int(todo_total)}] "
+        f"{rec.get('chi_status')} "
+        f"n={float(rec['n_cm2']):.6e} D={float(rec['D_Vnm']):.4f} "
+        f"runtime={float(rec.get('chi_runtime_s', 0.0)):.1f}s"
+    )
+
+
+def parse_plot_keys(text: str | None) -> list[str] | None:
+    if text is None or text.strip() == "":
+        return None
+    return [part.strip() for part in text.split(",") if part.strip()]
+
+
 def main() -> None:
     args = build_parser().parse_args()
     started = time.time()
@@ -445,7 +472,11 @@ def main() -> None:
         workers=workers,
     )
 
-    print(f"pending points: {len(pending)}; workers: {workers}", flush=True)
+    print(
+        f"source points: {len(source)}; todo points: {len(todo)}; "
+        f"existing records: {len(records)}; pending points: {len(pending)}; workers: {workers}",
+        flush=True,
+    )
     if workers == 1:
         for index, row_data in enumerate(pending, start=1):
             print(
@@ -467,7 +498,16 @@ def main() -> None:
                 started=started,
                 workers=workers,
             )
-            print(f"[{index}/{len(pending)}] {rec.get('chi_status')} runtime={rec.get('chi_runtime_s', 0.0):.1f}s", flush=True)
+            print(
+                format_progress_message(
+                    completed_this_run=index,
+                    pending_total=len(pending),
+                    recorded_total=len(records),
+                    todo_total=len(todo),
+                    rec=rec,
+                ),
+                flush=True,
+            )
     else:
         with ProcessPoolExecutor(max_workers=workers) as pool:
             futures = [pool.submit(run_chi_task, row_data, args) for row_data in pending]
@@ -487,9 +527,13 @@ def main() -> None:
                     workers=workers,
                 )
                 print(
-                    f"[{index}/{len(pending)}] {rec.get('chi_status')} "
-                    f"n={float(rec['n_cm2']):.6e} D={float(rec['D_Vnm']):.4f} "
-                    f"runtime={rec.get('chi_runtime_s', 0.0):.1f}s",
+                    format_progress_message(
+                        completed_this_run=index,
+                        pending_total=len(pending),
+                        recorded_total=len(records),
+                        todo_total=len(todo),
+                        rec=rec,
+                    ),
                     flush=True,
                 )
 
@@ -505,6 +549,11 @@ def main() -> None:
         started=started,
         workers=workers,
     )
+    if not args.no_plots:
+        figures_dir = Path(args.figures_dir) if args.figures_dir is not None else out_dir / "figures"
+        plot_summary = plot_finite_q_outputs(out_csv, out_dir=figures_dir, plot_keys=parse_plot_keys(args.plot_keys))
+        write_json(out_dir / "plot_summary.json", plot_summary)
+        print(f"saved figures {figures_dir} ({plot_summary['generated_count']} plots)")
     print("saved", out_csv)
     print(json.dumps(_jsonable(summary), indent=2))
 
