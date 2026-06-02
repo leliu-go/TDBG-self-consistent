@@ -546,6 +546,24 @@ def summarize_q_scan(results: list[ChiQResult], finite_q_tol: float = 1e-3) -> d
         out["gamma_lambda_u_plus_hund"] = float(gamma_lambda)
         out["finite_q_lambda_ratio"] = float(ratio)
         out["finite_q_wins"] = bool(finite_q_wins)
+
+    jdos_key = "jdos_total_cell_meV_inv2"
+    jdos_available = [r for r in results if jdos_key in r.extra]
+    if jdos_available:
+        gamma_jdos = float(gamma_res.extra.get(jdos_key, 0.0))
+        nonzero_jdos = [r for r in jdos_available if not r.q.is_gamma]
+        max_jdos = max(nonzero_jdos if nonzero_jdos else jdos_available, key=lambda r: float(r.extra[jdos_key]))
+        qstar_jdos = float(max_jdos.extra[jdos_key])
+        ratio = float(qstar_jdos / gamma_jdos) if abs(gamma_jdos) > 1e-30 else np.inf
+        out["gamma_jdos_total_cell_meV_inv2"] = gamma_jdos
+        out["qstar_jdos_total_cell_meV_inv2"] = qstar_jdos
+        out["finite_q_jdos_ratio"] = ratio
+        out["finite_q_jdos_wins"] = bool(nonzero_jdos and qstar_jdos > gamma_jdos * (1.0 + float(finite_q_tol)))
+        out["qstar_jdos_total_dq1"] = int(max_jdos.q.dq1)
+        out["qstar_jdos_total_dq2"] = int(max_jdos.q.dq2)
+        out["qstar_jdos_total_qx_Ainv"] = float(max_jdos.q.qx_Ainv)
+        out["qstar_jdos_total_qy_Ainv"] = float(max_jdos.q.qy_Ainv)
+        out["qstar_jdos_total_qnorm_Ainv"] = float(max_jdos.q.q_norm_Ainv)
     return out
 
 

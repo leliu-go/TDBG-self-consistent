@@ -9,6 +9,7 @@ import matplotlib
 
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
+from matplotlib.lines import Line2D
 import numpy as np
 
 SCRIPT_DIR = Path(__file__).resolve().parent
@@ -251,6 +252,8 @@ def build_parser() -> argparse.ArgumentParser:
     ap.add_argument("--chi-kBT-meV", type=float, default=0.05)
     ap.add_argument("--energy-window-meV", type=float, default=30.0)
     ap.add_argument("--max-bands-per-k", type=int, default=24)
+    ap.add_argument("--jdos-sigma-meV", type=float, default=1.0)
+    ap.add_argument("--no-jdos", action="store_true")
     ap.add_argument("--main-vertex-model", choices=["su4_diag", "su2_hund_factor2"], default="su4_diag")
     add_bool_optional_arg(ap, "also-run-hund-factor2", default=True)
     ap.add_argument("--hund-transverse-factor", type=float, default=2.0)
@@ -264,6 +267,164 @@ def build_parser() -> argparse.ArgumentParser:
     add_stoner_detail_args(ap)
     ap.add_argument("--out", type=Path, required=True)
     return ap
+
+
+def save_jdos_qmap_figure(out: Path, qdf) -> None:
+    key = "jdos_total_cell_meV_inv2"
+    if key not in qdf.columns:
+        return
+    fig, ax = plt.subplots(figsize=(5, 4), constrained_layout=True)
+    sc = ax.scatter(qdf["qx_Ainv"], qdf["qy_Ainv"], c=qdf[key], s=36)
+    if "is_gamma" in qdf.columns:
+        nonzero = qdf[~qdf["is_gamma"].astype(bool)]
+    else:
+        nonzero = qdf
+    if len(nonzero):
+        imax = nonzero[key].astype(float).idxmax()
+        ax.scatter([qdf.loc[imax, "qx_Ainv"]], [qdf.loc[imax, "qy_Ainv"]], marker="x", s=70, color="tab:red", lw=1.6)
+    ax.set_xlabel(r"$Q_x$ [$\AA^{-1}$]")
+    ax.set_ylabel(r"$Q_y$ [$\AA^{-1}$]")
+    ax.set_title("Fermi-surface JDOS / nesting function")
+    cb = fig.colorbar(sc, ax=ax)
+    cb.set_label(r"$N(Q)$ [cell meV$^{-2}$]")
+    fig.savefig(out / "jdos_qmap.png", dpi=180)
+    plt.close(fig)
+
+
+def q_vector_from_summary(summary: dict, prefix: str) -> np.ndarray | None:
+    qx = summary.get(f"qstar_{prefix}_qx_Ainv")
+    qy = summary.get(f"qstar_{prefix}_qy_Ainv")
+    if qx is None or qy is None:
+        return None
+    qvec = np.asarray([float(qx), float(qy)], dtype=float)
+    if not np.all(np.isfinite(qvec)):
+        return None
+    return qvec
+
+
+def contour_crosses_zero(z: np.ndarray) -> bool:
+    vals = np.asarray(z, dtype=float)
+    vals = vals[np.isfinite(vals)]
+    return bool(vals.size and float(np.min(vals)) <= 0.0 <= float(np.max(vals)))
+
+
+def plot_shifted_fermi_contour_panels(
+    out: Path,
+    filename: str,
+    kpts: np.ndarray,
+    panels: list[tuple[str, np.ndarray, float]],
+    band_indices: np.ndarray,
+    qvec_Ainv: np.ndarray,
+    title: str,
+) -> None:
+    qvec = np.asarray(qvec_Ainv, dtype=float)
+    n_panels = len(panels)
+    ncols = min(2, n_panels)
+    nrows = int(np.ceil(n_panels / ncols))
+    fig, axes = plt.subplots(nrows, ncols, figsize=(4.1 * ncols, 3.5 * nrows), squeeze=False)
+    x = np.asarray(kpts[:, 0], dtype=float)
+    y = np.asarray(kpts[:, 1], dtype=float)
+    shifts = [
+        (np.zeros(2), "k", "-", "FS"),
+        (qvec, "tab:red", "--", "FS + Q*"),
+        (-qvec, "tab:blue", ":", "FS - Q*"),
+    ]
+    for ax, (name, evals, mu) in zip(axes.ravel(), panels):
+        for band in band_indices:
+            z = np.asarray(evals[:, int(band)], dtype=float) - float(mu)
+            if not contour_crosses_zero(z):
+                continue
+            for shift, color, linestyle, _label in shifts:
+                ax.tricontour(
+                    x + float(shift[0]),
+                    y + float(shift[1]),
+                    z,
+                    levels=[0.0],
+                    colors=color,
+                    linewidths=0.9,
+                    linestyles=linestyle,
+                )
+        ax.quiver(
+            [0.0],
+            [0.0],
+            [float(qvec[0])],
+            [float(qvec[1])],
+            angles="xy",
+            scale_units="xy",
+            scale=1.0,
+            width=0.006,
+            color="0.25",
+        )
+        ax.set_title(name)
+        ax.set_aspect("equal", adjustable="box")
+        ax.set_xlabel(r"$k_x$ [$\AA^{-1}$]")
+        ax.set_ylabel(r"$k_y$ [$\AA^{-1}$]")
+    for ax in axes.ravel()[n_panels:]:
+        ax.axis("off")
+    handles = [Line2D([0], [0], color=color, lw=1.1, linestyle=linestyle, label=label) for _shift, color, linestyle, label in shifts]
+    fig.legend(handles=handles, loc="upper center", ncol=3, frameon=False)
+    fig.suptitle(title)
+    fig.tight_layout(rect=(0, 0, 1, 0.95))
+    fig.savefig(out / filename, dpi=220)
+    plt.close(fig)
+
+
+def save_qstar_contour_overlays(out: Path, summary: dict, args: argparse.Namespace) -> None:
+    before_path = out / "full_band_contours_before_stoner.npz"
+    after_path = out / "full_band_contours_stoner_flavors.npz"
+    if not before_path.exists() or not after_path.exists():
+        return
+
+    qvec_chi = q_vector_from_summary(summary, args.main_vertex_model)
+    qvec_jdos = q_vector_from_summary(summary, "jdos_total")
+    with np.load(before_path) as before:
+        before_kpts = before["kpts"]
+        before_band_indices = before["band_indices"]
+        before_panels = [
+            ("K before Stoner", before["evals_K_meV"], float(before["full_mu_meV"])),
+            ("Kp before Stoner", before["evals_Kp_meV"], float(before["full_mu_meV"])),
+        ]
+        if qvec_chi is not None:
+            plot_shifted_fermi_contour_panels(
+                out,
+                "fermi_contours_before_stoner_with_chi_Qstar.png",
+                before_kpts,
+                before_panels,
+                before_band_indices,
+                qvec_chi,
+                f"Before Stoner contours shifted by {args.main_vertex_model} Q*",
+            )
+
+    with np.load(after_path) as after:
+        after_kpts = after["kpts"]
+        after_band_indices = after["band_indices"]
+        mu_f = after["mu_f_meV"]
+        after_panels = [
+            ("K up after Stoner", after["evals_K_meV"], float(mu_f[0])),
+            ("Kp up after Stoner", after["evals_Kp_meV"], float(mu_f[1])),
+            ("K down after Stoner", after["evals_K_meV"], float(mu_f[2])),
+            ("Kp down after Stoner", after["evals_Kp_meV"], float(mu_f[3])),
+        ]
+        if qvec_chi is not None:
+            plot_shifted_fermi_contour_panels(
+                out,
+                "fermi_contours_after_stoner_with_chi_Qstar.png",
+                after_kpts,
+                after_panels,
+                after_band_indices,
+                qvec_chi,
+                f"After Stoner contours shifted by {args.main_vertex_model} Q*",
+            )
+        if qvec_jdos is not None:
+            plot_shifted_fermi_contour_panels(
+                out,
+                "fermi_contours_after_stoner_with_jdos_Qstar.png",
+                after_kpts,
+                after_panels,
+                after_band_indices,
+                qvec_jdos,
+                "After Stoner contours shifted by JDOS Q*",
+            )
 
 
 def main() -> None:
@@ -325,6 +486,8 @@ def main() -> None:
         spin_flip_mode=args.spin_flip_mode,
         legacy_diagnostics=args.legacy_diagnostics,
         include_layer_matrix=not args.no_layer_matrix,
+        include_jdos=not args.no_jdos,
+        jdos_sigma_meV=args.jdos_sigma_meV,
     )
     q_results = scan_q_for_state(
         state,
@@ -346,6 +509,7 @@ def main() -> None:
     cb.set_label(r"$\lambda_{U+J}(Q)$")
     fig.savefig(args.out / "susceptibility_qmap.png", dpi=180)
     plt.close(fig)
+    save_jdos_qmap_figure(args.out, qdf)
 
     if not args.no_stoner_detail_outputs:
         row = stoner_detail_row(state, args)
@@ -365,6 +529,7 @@ def main() -> None:
             state.stoner_result,
             state.tables,
         )
+        save_qstar_contour_overlays(args.out, summary, args)
 
     print("Saved:", args.out)
     print(summary)

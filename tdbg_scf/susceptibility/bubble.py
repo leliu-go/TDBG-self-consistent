@@ -141,6 +141,14 @@ def minus_fermi_derivative(E_minus_mu_meV: np.ndarray, kBT_meV: float) -> np.nda
     return 1.0 / (4.0 * T * np.cosh(x) ** 2)
 
 
+def gaussian_delta(E_minus_mu_meV: np.ndarray, sigma_meV: float) -> np.ndarray:
+    sigma = float(sigma_meV)
+    if sigma <= 0.0:
+        raise ValueError("sigma_meV must be positive")
+    x = np.asarray(E_minus_mu_meV, dtype=float) / sigma
+    return np.exp(-0.5 * x * x) / (np.sqrt(2.0 * np.pi) * sigma)
+
+
 def lindhard_static_ratio(
     E_initial_meV: np.ndarray,
     E_final_meV: np.ndarray,
@@ -218,6 +226,94 @@ def band_indices_near_mu(
         local_order = np.argsort(distance[idx])
         idx = idx[local_order[: int(max_bands)]]
     return np.sort(idx.astype(int))
+
+
+def _jdos_band_indices_near_mu(
+    energies_meV: np.ndarray,
+    mu_meV: float,
+    energy_window_meV: float | None,
+    max_bands: int | None,
+) -> np.ndarray:
+    e = np.asarray(energies_meV, dtype=float)
+    if e.ndim != 1:
+        raise ValueError("energies_meV must be 1D")
+    distance = np.abs(e - float(mu_meV))
+    if energy_window_meV is None:
+        idx = np.arange(e.size, dtype=int)
+    else:
+        idx = np.where(distance <= float(energy_window_meV))[0]
+    if max_bands is not None and idx.size > int(max_bands):
+        order = np.argsort(distance[idx])
+        idx = idx[order[: int(max_bands)]]
+    return np.sort(idx.astype(int))
+
+
+def _safe_flavor_label(name: str, index: int) -> str:
+    label = "".join(ch if ch.isalnum() else "_" for ch in str(name)).strip("_")
+    return label or f"flavor_{index}"
+
+
+def compute_fermi_surface_jdos_q(
+    q: QPoint,
+    grid_shape: tuple[int, int],
+    weights: np.ndarray,
+    A_M_A2: float,
+    evals_by_flavor_meV: list[np.ndarray] | tuple[np.ndarray, ...],
+    mu_by_flavor_meV: list[float] | tuple[float, ...] | np.ndarray,
+    sigma_meV: float,
+    energy_window_meV: float | None,
+    max_bands_per_k: int | None,
+    evals_q_by_flavor_meV: list[np.ndarray] | tuple[np.ndarray, ...] | None = None,
+    flavor_names: list[str] | tuple[str, ...] | None = None,
+) -> dict[str, float]:
+    """Gaussian-broadened FS autocorrelation/JDOS at one Q.
+
+    N(Q) = sum_{k,n,m} delta_sigma(E_n(k)-mu) delta_sigma(E_m(k+Q)-mu).
+    The result is reported per moire cell in meV^-2.
+    """
+
+    weights_arr = np.asarray(weights, dtype=float)
+    Nk = int(np.prod(np.asarray(grid_shape, dtype=int)))
+    if weights_arr.shape != (Nk,):
+        raise ValueError("weights must have shape (grid_n1 * grid_n2,)")
+    if len(evals_by_flavor_meV) != len(mu_by_flavor_meV):
+        raise ValueError("evals_by_flavor_meV and mu_by_flavor_meV must have the same length")
+    if evals_q_by_flavor_meV is not None and len(evals_q_by_flavor_meV) != len(evals_by_flavor_meV):
+        raise ValueError("evals_q_by_flavor_meV must match evals_by_flavor_meV")
+
+    folded_mode = evals_q_by_flavor_meV is None
+    kq_indices = folded_indices_for_q(q, grid_shape) if folded_mode else np.arange(Nk, dtype=int)
+    names = flavor_names if flavor_names is not None else tuple(f"flavor_{i}" for i in range(len(evals_by_flavor_meV)))
+
+    total = 0.0
+    out: dict[str, float] = {}
+    for flavor_index, (evals_i_all, mu) in enumerate(zip(evals_by_flavor_meV, mu_by_flavor_meV)):
+        evals_i_all = np.asarray(evals_i_all, dtype=float)
+        evals_f_all = evals_i_all if folded_mode else np.asarray(evals_q_by_flavor_meV[flavor_index], dtype=float)
+        if evals_i_all.ndim != 2 or evals_f_all.ndim != 2:
+            raise ValueError("flavor eval arrays must have shape (Nk, n_bands)")
+        if evals_i_all.shape[0] != Nk or evals_f_all.shape[0] != Nk:
+            raise ValueError("flavor eval arrays must use the same k grid as weights")
+
+        flavor_value = 0.0
+        for ik in range(Nk):
+            ikq = int(kq_indices[ik])
+            Ei_all = evals_i_all[ik]
+            Ef_all = evals_f_all[ikq]
+            idx_i = _jdos_band_indices_near_mu(Ei_all, float(mu), energy_window_meV, max_bands_per_k)
+            idx_f = _jdos_band_indices_near_mu(Ef_all, float(mu), energy_window_meV, max_bands_per_k)
+            if idx_i.size == 0 or idx_f.size == 0:
+                continue
+            di = gaussian_delta(Ei_all[idx_i] - float(mu), sigma_meV)
+            df = gaussian_delta(Ef_all[idx_f] - float(mu), sigma_meV)
+            flavor_value += float(A_M_A2) * float(weights_arr[ik]) * float(np.sum(di) * np.sum(df))
+
+        label = _safe_flavor_label(str(names[flavor_index]), flavor_index)
+        out[f"jdos_{label}_cell_meV_inv2"] = float(flavor_value)
+        total += float(flavor_value)
+
+    out["jdos_total_cell_meV_inv2"] = float(total)
+    return out
 
 
 def _pair_form_factors_total(Vf: np.ndarray, Vi: np.ndarray) -> np.ndarray:
@@ -441,6 +537,30 @@ def compute_transverse_chi_q(
     weights_arr = np.asarray(weights, dtype=float)
     chi_K_plus = chi_Kp_plus = chi_K_minus = chi_Kp_minus = None
     layer_K_plus = layer_Kp_plus = layer_K_minus = layer_Kp_minus = None
+    extra: dict = {}
+
+    if params.include_jdos:
+        mu_base = np.asarray(mu_bar, dtype=float) - sigma
+        evals_by_flavor = (evals_K_meV, evals_Kp_meV, evals_K_meV, evals_Kp_meV)
+        if folded_mode:
+            evals_q_by_flavor = None
+        else:
+            evals_q_by_flavor = (evals_K_q_meV, evals_Kp_q_meV, evals_K_q_meV, evals_Kp_q_meV)
+        extra.update(
+            compute_fermi_surface_jdos_q(
+                q=q,
+                grid_shape=grid_shape,
+                weights=weights_arr,
+                A_M_A2=float(A_M_A2),
+                evals_by_flavor_meV=evals_by_flavor,
+                mu_by_flavor_meV=mu_base,
+                sigma_meV=float(params.jdos_sigma_meV),
+                energy_window_meV=params.energy_window_meV,
+                max_bands_per_k=params.max_bands_per_k,
+                evals_q_by_flavor_meV=evals_q_by_flavor,
+                flavor_names=ref.flavor_names,
+            )
+        )
 
     if _spin_flip_enabled(params, "plus"):
         chi_K_plus, layer_K_plus = _accumulate_one_valley_pair(
@@ -524,7 +644,6 @@ def compute_transverse_chi_q(
         models.pop("su2_hund_factor2", None)
 
     model_payload: dict[str, dict] = {}
-    extra: dict = {}
     for model_name, spec in models.items():
         plus_lam = minus_lam = None
         plus_vec = minus_vec = None

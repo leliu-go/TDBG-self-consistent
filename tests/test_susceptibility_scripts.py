@@ -26,6 +26,8 @@ def test_single_point_susceptibility_help():
     assert "--points-per-segment" in result.stdout
     assert "--contour-band-count" in result.stdout
     assert "--no-stoner-detail-outputs" in result.stdout
+    assert "--jdos-sigma-meV" in result.stdout
+    assert "--no-jdos" in result.stdout
 
 
 def test_nd_mapping_susceptibility_help():

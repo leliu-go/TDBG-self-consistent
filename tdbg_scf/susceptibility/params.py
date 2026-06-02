@@ -22,6 +22,8 @@ class SusceptibilityParams:
     spin_flip_mode: str = "both_pm"
     legacy_diagnostics: bool = True
     include_layer_matrix: bool = True
+    include_jdos: bool = False
+    jdos_sigma_meV: float = 1.0
     hermitize_layer_matrix: bool = True
     layer_dipole_zeta: tuple[float, float, float, float] = (1.5, 0.5, -0.5, -1.5)
     finite_q_tol: float = 1e-3

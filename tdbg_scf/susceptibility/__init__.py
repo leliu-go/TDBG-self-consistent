@@ -1,6 +1,6 @@
 """Finite-Q transverse spin susceptibility on top of Stoner reference states."""
 
-from .bubble import ChiQResult, compute_transverse_chi_q
+from .bubble import ChiQResult, compute_fermi_surface_jdos_q, compute_transverse_chi_q
 from .params import SusceptibilityParams
 from .plotting import plot_finite_q_outputs, plot_nd_map
 from .qmesh import QPoint, folded_indices_for_q, make_commensurate_q_points
@@ -28,6 +28,7 @@ __all__ = [
     "generalized_stoner_lambda",
     "make_valley_vertex_models",
     "ChiQResult",
+    "compute_fermi_surface_jdos_q",
     "compute_transverse_chi_q",
     "SinglePointStonerState",
     "solve_full_scf_stoner_state",

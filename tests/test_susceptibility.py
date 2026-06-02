@@ -60,6 +60,40 @@ def test_lindhard_static_ratio_uses_fermi_derivative_for_degenerate_denominator(
     assert np.allclose(ratio, [[0.5]])
 
 
+def test_fermi_surface_jdos_q_counts_same_energy_pairs():
+    from tdbg_scf.susceptibility.bubble import compute_fermi_surface_jdos_q
+    from tdbg_scf.susceptibility.qmesh import QPoint
+
+    evals = np.array([[0.0], [5.0], [0.0]])
+    weights = np.ones(3) / 3.0
+
+    connected = compute_fermi_surface_jdos_q(
+        q=QPoint(1, 0, np.array([0.1, 0.0])),
+        grid_shape=(3, 1),
+        weights=weights,
+        A_M_A2=6.0,
+        evals_by_flavor_meV=[evals],
+        mu_by_flavor_meV=[0.0],
+        sigma_meV=0.5,
+        energy_window_meV=2.0,
+        max_bands_per_k=4,
+    )
+    disconnected = compute_fermi_surface_jdos_q(
+        q=QPoint(0, 0, np.zeros(2)),
+        grid_shape=(3, 1),
+        weights=weights,
+        A_M_A2=6.0,
+        evals_by_flavor_meV=[evals + 5.0],
+        mu_by_flavor_meV=[0.0],
+        sigma_meV=0.5,
+        energy_window_meV=2.0,
+        max_bands_per_k=4,
+    )
+
+    assert connected["jdos_total_cell_meV_inv2"] > 0.0
+    assert disconnected["jdos_total_cell_meV_inv2"] == 0.0
+
+
 def test_minimal_transverse_chi_q_accumulates_two_valleys():
     from tdbg_scf.susceptibility.bubble import compute_transverse_chi_q
     from tdbg_scf.susceptibility.params import SusceptibilityParams
@@ -127,6 +161,17 @@ def test_q_scan_summary_detects_finite_q_winner():
             1.25,
             lambda_su4_diag_selected=1.25,
             su4_diag_spin_flip_direction="plus",
+            extra={"jdos_total_cell_meV_inv2": 0.7},
+        ),
+        ChiQResult(
+            QPoint(0, 1, np.array([0.0, 0.2])),
+            0.8,
+            0.4,
+            0.4,
+            0.8,
+            0.8,
+            lambda_su4_diag_selected=0.8,
+            extra={"jdos_total_cell_meV_inv2": 1.4},
         ),
     ]
 
@@ -136,3 +181,5 @@ def test_q_scan_summary_detects_finite_q_winner():
     assert summary["qstar_su4_diag_dq1"] == 1
     assert summary["finite_q_wins_su4_diag"] is True
     assert np.isclose(summary["finite_q_ratio_su4_diag"], 1.25)
+    assert summary["qstar_jdos_total_dq2"] == 1
+    assert np.isclose(summary["qstar_jdos_total_cell_meV_inv2"], 1.4)
