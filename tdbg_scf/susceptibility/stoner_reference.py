@@ -117,6 +117,13 @@ def soft_transverse_channel(nu_f: np.ndarray, spin_channel_tol: float = 1e-8) ->
     return "degenerate"
 
 
+def equilibrium_mu_for_shifted_self_energy_meV(ref: StonerReference) -> float:
+    sigma_full = np.asarray(ref.sigma_full_f_meV, dtype=float)
+    sigma_shifted = np.asarray(ref.sigma_shifted_f_meV, dtype=float)
+    common_shift = float(np.mean(sigma_full - sigma_shifted))
+    return float(ref.mu_eq_meV) - common_shift
+
+
 def _nu_of_mu_zero_temperature(table, mu_meV: float) -> float:
     mu = float(mu_meV)
     lo_mu = table.mu_of_nu(float(table.nu_min))

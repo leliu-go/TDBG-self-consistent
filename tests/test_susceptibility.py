@@ -246,6 +246,75 @@ def test_minimal_transverse_chi_q_accumulates_two_valleys():
     assert result.selected_spin_flip_direction in {"plus", "minus"}
 
 
+def test_equilibrium_common_mu_matches_shifted_self_energy_gauge():
+    from tdbg_scf.susceptibility.bubble import compute_transverse_chi_q
+    from tdbg_scf.susceptibility.params import SusceptibilityParams
+    from tdbg_scf.susceptibility.qmesh import QPoint
+    from tdbg_scf.susceptibility.stoner_reference import StonerReference
+
+    evals = np.array([[0.0]])
+    evecs = np.ones((1, 1, 1), dtype=np.complex128)
+    ref = StonerReference(
+        nu_f=np.zeros(4),
+        mu_f_meV=np.zeros(4),
+        sigma_f_meV=np.zeros(4),
+        mu_common_meV=0.0,
+        mu_common_spread_meV=0.0,
+        u_cell_meV=2.0,
+        J_cell_meV=0.0,
+        sigma_full_f_meV=np.full(4, 10.0),
+        sigma_shifted_f_meV=np.zeros(4),
+        mu_eq_meV=10.0,
+        soft_transverse_channel="degenerate",
+    )
+
+    result = compute_transverse_chi_q(
+        q=QPoint(0, 0, np.zeros(2)),
+        grid_shape=(1, 1),
+        weights=np.array([1.0]),
+        A_M_A2=1.0,
+        evals_K_meV=evals,
+        evecs_K=evecs,
+        evals_Kp_meV=evals,
+        evecs_Kp=evecs,
+        ref=ref,
+        params=SusceptibilityParams(kBT_meV=0.5, include_layer_matrix=False, occupation_mode="equilibrium_common_mu"),
+    )
+
+    assert result.chi_K_plus_cell_meV_inv == 0.5
+    assert result.chi_K_minus_cell_meV_inv == 0.5
+    assert result.chi_total_cell_meV_inv == 1.0
+
+
+def test_vhs_diagnostics_uses_equilibrium_mu_in_shifted_self_energy_gauge():
+    from tdbg_scf.susceptibility.stoner_reference import StonerReference
+    from tdbg_scf.susceptibility.vhs import robust_vhs_diagnostics
+
+    ref = StonerReference(
+        nu_f=np.zeros(4),
+        mu_f_meV=np.zeros(4),
+        sigma_f_meV=np.zeros(4),
+        mu_common_meV=0.0,
+        mu_common_spread_meV=0.0,
+        u_cell_meV=2.0,
+        J_cell_meV=0.0,
+        sigma_full_f_meV=np.full(4, 10.0),
+        sigma_shifted_f_meV=np.zeros(4),
+        mu_eq_meV=10.0,
+    )
+
+    class _State:
+        stoner_reference = ref
+        evals_K_meV = np.array([[0.0]])
+        evals_Kp_meV = np.array([[0.0]])
+        weights = np.array([1.0])
+
+    diag = robust_vhs_diagnostics(_State(), sigma_meV=1.0)
+
+    assert diag["DOS_active_flavor_EF"] > 0.3
+    assert diag["DOS_total_EF"] > 1.0
+
+
 def test_q_scan_summary_detects_finite_q_winner():
     from tdbg_scf.susceptibility.bubble import ChiQResult
     from tdbg_scf.susceptibility.qmesh import QPoint

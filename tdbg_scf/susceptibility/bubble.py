@@ -6,7 +6,7 @@ import numpy as np
 
 from .params import SusceptibilityParams
 from .qmesh import QPoint, folded_indices_and_shifts_for_q, folded_indices_for_q
-from .stoner_reference import StonerReference
+from .stoner_reference import StonerReference, equilibrium_mu_for_shifted_self_energy_meV
 from .vertex import generalized_stoner_lambda, legacy_scalar_total_lambda, make_valley_vertex_models
 
 
@@ -591,7 +591,7 @@ def compute_transverse_chi_q(
     if params.occupation_mode == "common_mu":
         mu_bar = np.full(4, float(ref.mu_common_meV), dtype=float)
     if params.occupation_mode == "equilibrium_common_mu":
-        mu_bar = np.full(4, float(ref.mu_eq_meV), dtype=float)
+        mu_bar = np.full(4, equilibrium_mu_for_shifted_self_energy_meV(ref), dtype=float)
     folded_mode = params.q_mode in {"folded_grid", "folded_grid_with_G_shift"}
     folded_with_G_shift = params.q_mode == "folded_grid_with_G_shift"
 

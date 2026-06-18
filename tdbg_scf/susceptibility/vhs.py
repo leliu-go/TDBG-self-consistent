@@ -3,12 +3,13 @@ from __future__ import annotations
 import numpy as np
 
 from tdbg_scf.density import dos_at_mu_gaussian
+from tdbg_scf.susceptibility.stoner_reference import equilibrium_mu_for_shifted_self_energy_meV
 
 
 def robust_vhs_diagnostics(state, sigma_meV: float = 1.0) -> dict[str, float | str]:
     ref = state.stoner_reference
     sigma = np.asarray(ref.sigma_shifted_f_meV, dtype=float)
-    mu_eq = float(ref.mu_eq_meV)
+    mu_eq = equilibrium_mu_for_shifted_self_energy_meV(ref)
     evals_by_flavor = [
         np.asarray(state.evals_K_meV, dtype=float) + sigma[0],
         np.asarray(state.evals_Kp_meV, dtype=float) + sigma[1],
@@ -34,4 +35,3 @@ def robust_vhs_diagnostics(state, sigma_meV: float = 1.0) -> dict[str, float | s
         "delta_E_vhs_meV": np.nan,
         "vhs_fit_residual_meV": np.nan,
     }
-
