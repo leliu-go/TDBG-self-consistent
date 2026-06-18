@@ -71,6 +71,7 @@ def test_fixed_nu_dscan_susceptibility_help():
     assert "--selected-D-values" in result.stdout
     assert "--occupation-mode" in result.stdout
     assert "--q-mode" in result.stdout
+    assert "--max-workers" in result.stdout
     assert "flavor_mu" not in result.stdout
     assert "folded_grid," not in result.stdout
 
@@ -154,6 +155,27 @@ def test_fixed_nu_dscan_rejects_legacy_reference_and_q_modes():
         build_parser().parse_args(base + ["--occupation-mode", "common_mu"])
     with pytest.raises(SystemExit):
         build_parser().parse_args(base + ["--q-mode", "folded_grid"])
+
+
+def test_fixed_nu_dscan_accepts_parallel_worker_count():
+    from examples.run_fixed_nu_Dscan_stoner_susceptibility import build_parser, resolve_workers
+
+    args = build_parser().parse_args(
+        [
+            "--n-cm2",
+            "1.88e12",
+            "--D-values",
+            "-0.6",
+            "--out",
+            "dummy",
+            "--max-workers",
+            "60",
+        ]
+    )
+
+    assert args.max_workers == "60"
+    assert resolve_workers("60") == 60
+    assert resolve_workers("auto") >= 1
 
 
 def test_fixed_nu_dscan_filters_legacy_summary_columns():

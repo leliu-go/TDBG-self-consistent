@@ -2,7 +2,9 @@
 from __future__ import annotations
 
 import argparse
+from concurrent.futures import ProcessPoolExecutor, as_completed
 import json
+import os
 from pathlib import Path
 import sys
 import time
@@ -116,7 +118,17 @@ def build_parser() -> argparse.ArgumentParser:
     ap.add_argument("--no-layer-matrix", action="store_true")
     ap.add_argument("--out", type=Path, required=True)
     ap.add_argument("--resume", action="store_true")
+    ap.add_argument("--max-workers", type=str, default="auto", help="'auto' or an integer process count.")
     return ap
+
+
+def resolve_workers(value: str) -> int:
+    if str(value).lower() == "auto":
+        return max(1, (os.cpu_count() or 2) - 2)
+    workers = int(value)
+    if workers < 1:
+        raise ValueError("--max-workers must be >= 1 or auto")
+    return workers
 
 
 def run_point(point, args: argparse.Namespace, save_detail: bool) -> dict:
@@ -204,6 +216,24 @@ def run_point(point, args: argparse.Namespace, save_detail: bool) -> dict:
     return rec
 
 
+def run_point_task(point, args: argparse.Namespace, save_detail: bool) -> dict:
+    try:
+        return run_point(point, args, save_detail)
+    except Exception as exc:
+        return {
+            "D_index": int(point.D_index),
+            "D_Vnm": float(point.D_Vnm),
+            "n_cm2": float(point.n_cm2),
+            "nu_total": float(point.nu_total),
+            "chi_status": "error",
+            "chi_error": repr(exc),
+        }
+
+
+def save_summary_csv(path: Path, records: list[dict]) -> None:
+    pd.DataFrame(records).sort_values("D_index", kind="stable").to_csv(path, index=False)
+
+
 def main() -> None:
     args = build_parser().parse_args()
     args.out.mkdir(parents=True, exist_ok=True)
@@ -223,24 +253,32 @@ def main() -> None:
     if args.resume and summary_csv.exists():
         records.extend(pd.read_csv(summary_csv).to_dict("records"))
     write_json(args.out / "fixed_nu_Dscan_metadata.json", vars(args))
-    for index, point in enumerate(points, start=1):
+    pending = [point for point in points if round(point.D_Vnm, 10) not in done]
+    for point in points:
         if round(point.D_Vnm, 10) in done:
-            print(f"[{index}/{len(points)}] skip D={point.D_Vnm:.6g}")
-            continue
-        try:
-            rec = run_point(point, args, save_detail=round(point.D_Vnm, 10) in selected)
-        except Exception as exc:
-            rec = {
-                "D_index": int(point.D_index),
-                "D_Vnm": float(point.D_Vnm),
-                "n_cm2": float(point.n_cm2),
-                "nu_total": float(point.nu_total),
-                "chi_status": "error",
-                "chi_error": repr(exc),
+            print(f"skip D={point.D_Vnm:.6g}")
+    workers = resolve_workers(args.max_workers)
+    print(f"source D points: {len(points)}; pending points: {len(pending)}; workers: {workers}")
+    if workers == 1:
+        for index, point in enumerate(pending, start=1):
+            rec = run_point_task(point, args, save_detail=round(point.D_Vnm, 10) in selected)
+            records.append(rec)
+            save_summary_csv(summary_csv, records)
+            print(f"[{index}/{len(pending)}] {rec['chi_status']} D={point.D_Vnm:.6g}")
+    else:
+        completed = 0
+        with ProcessPoolExecutor(max_workers=workers) as ex:
+            futures = {
+                ex.submit(run_point_task, point, args, round(point.D_Vnm, 10) in selected): point
+                for point in pending
             }
-        records.append(rec)
-        pd.DataFrame(records).sort_values("D_index", kind="stable").to_csv(summary_csv, index=False)
-        print(f"[{index}/{len(points)}] {rec['chi_status']} D={point.D_Vnm:.6g}")
+            for fut in as_completed(futures):
+                point = futures[fut]
+                rec = fut.result()
+                records.append(rec)
+                completed += 1
+                save_summary_csv(summary_csv, records)
+                print(f"[{completed}/{len(pending)}] {rec['chi_status']} D={point.D_Vnm:.6g}")
     print("Saved:", summary_csv)
 
 
