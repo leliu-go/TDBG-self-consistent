@@ -1,10 +1,18 @@
 """Finite-Q transverse spin susceptibility on top of Stoner reference states."""
 
-from .bubble import ChiQResult, compute_fermi_surface_jdos_q, compute_transverse_chi_q
+from .bubble import ChiQResult, compute_fermi_surface_jdos_q, compute_spinflip_nesting_q, compute_transverse_chi_q
 from .params import SusceptibilityParams
-from .plotting import plot_finite_q_outputs, plot_nd_map
-from .qmesh import QPoint, folded_indices_for_q, make_commensurate_q_points
-from .stoner_reference import StonerReference, make_stoner_reference, stoner_self_energy_shifts_meV
+from .plotting import (
+    plot_convergence_summary,
+    plot_finite_q_outputs,
+    plot_fixed_nu_Dscan_overview,
+    plot_nd_map,
+    plot_q_linecuts,
+    plot_representative_qmaps,
+    plot_vhs_spinflip_nesting,
+)
+from .qmesh import QPoint, folded_indices_for_q, make_commensurate_q_points, reduce_q_to_first_mbz
+from .stoner_reference import StonerReference, make_stoner_reference, soft_transverse_channel, stoner_self_energy_shifts_meV
 from .vertex import VertexSpec, generalized_stoner_lambda, make_valley_vertex_models
 from .workflow import (
     SinglePointStonerState,
@@ -19,16 +27,24 @@ __all__ = [
     "QPoint",
     "plot_finite_q_outputs",
     "plot_nd_map",
+    "plot_fixed_nu_Dscan_overview",
+    "plot_representative_qmaps",
+    "plot_q_linecuts",
+    "plot_vhs_spinflip_nesting",
+    "plot_convergence_summary",
     "make_commensurate_q_points",
+    "reduce_q_to_first_mbz",
     "folded_indices_for_q",
     "StonerReference",
     "make_stoner_reference",
+    "soft_transverse_channel",
     "stoner_self_energy_shifts_meV",
     "VertexSpec",
     "generalized_stoner_lambda",
     "make_valley_vertex_models",
     "ChiQResult",
     "compute_fermi_surface_jdos_q",
+    "compute_spinflip_nesting_q",
     "compute_transverse_chi_q",
     "SinglePointStonerState",
     "solve_full_scf_stoner_state",

@@ -443,6 +443,7 @@ def scan_q_for_state(
         q_stride=int(q_stride),
         max_abs_step=max_abs_q_step,
         include_gamma=include_gamma,
+        first_mbz_only=bool(susc_params.first_mbz_only),
     )
 
     results: list[ChiQResult] = []
@@ -546,6 +547,73 @@ def summarize_q_scan(results: list[ChiQResult], finite_q_tol: float = 1e-3) -> d
         out["gamma_lambda_u_plus_hund"] = float(gamma_lambda)
         out["finite_q_lambda_ratio"] = float(ratio)
         out["finite_q_wins"] = bool(finite_q_wins)
+
+    soft_key = f"lambda_{str(getattr(results[0], 'selected_vertex_model', None) or 'su4_diag')}_soft"
+    # The paper default is SU4 diagonal; keep this explicit even when another model is selected.
+    soft_key = "lambda_su4_diag_soft"
+    soft_available = [r for r in results if soft_key in r.extra and np.isfinite(float(r.extra[soft_key]))]
+    if soft_available:
+        gamma_soft_res = gamma_res if soft_key in gamma_res.extra else min(soft_available, key=lambda r: r.q.q_norm_mbz_Ainv)
+        gamma_soft = float(gamma_soft_res.extra[soft_key])
+        nonzero_soft = [r for r in soft_available if not r.q.is_gamma]
+        qstar_soft_res = max(nonzero_soft if nonzero_soft else soft_available, key=lambda r: float(r.extra[soft_key]))
+        lambda_qstar = float(qstar_soft_res.extra[soft_key])
+        ratio = float(lambda_qstar / gamma_soft) if abs(gamma_soft) > 1e-14 else np.inf
+        delta = float(ratio - 1.0)
+        delta_raw = float(lambda_qstar - gamma_soft)
+        q_resolution = min((r.q.q_norm_mbz_Ainv for r in results if not r.q.is_gamma), default=0.0)
+        first_shell = bool(q_resolution > 0.0 and qstar_soft_res.q.q_norm_mbz_Ainv <= q_resolution * (1.0 + 1e-8))
+        finite_q_error = 0.0
+        threshold = max(0.02, 2.0 * finite_q_error)
+        if delta <= 0.0:
+            status = "uniform_Q0"
+        elif first_shell:
+            status = "finite_Q_candidate"
+        elif delta > threshold:
+            status = "finite_Q_resolved"
+        else:
+            status = "numerically_ambiguous"
+        out.update(
+            {
+                "soft_transverse_channel": str(gamma_soft_res.extra.get("soft_transverse_channel", "")),
+                "lambda_gamma_su4_soft": gamma_soft,
+                "lambda_qstar_su4_soft": lambda_qstar,
+                "finite_q_ratio_su4_soft": ratio,
+                "finite_q_delta_normalized": delta,
+                "finite_q_delta_raw": delta_raw,
+                "qstar_qx_mbz_Ainv": float(qstar_soft_res.q.qx_mbz_Ainv),
+                "qstar_qy_mbz_Ainv": float(qstar_soft_res.q.qy_mbz_Ainv),
+                "qstar_qnorm_mbz_Ainv": float(qstar_soft_res.q.q_norm_mbz_Ainv),
+                "qstar_shell_index": int(qstar_soft_res.q.shell_index or max(abs(qstar_soft_res.q.dq1), abs(qstar_soft_res.q.dq2))),
+                "qstar_is_first_nonzero_shell": first_shell,
+                "qstar_distance_from_gamma_in_grid_units": float(np.hypot(qstar_soft_res.q.dq1, qstar_soft_res.q.dq2)),
+                "q_resolution_Ainv": float(q_resolution),
+                "L_SDW_nm": float(0.1 * 2.0 * np.pi / qstar_soft_res.q.q_norm_mbz_Ainv)
+                if qstar_soft_res.q.q_norm_mbz_Ainv > 0.0 and not first_shell
+                else np.nan,
+                "finite_q_status": status,
+                "finite_q_numerical_error": finite_q_error,
+            }
+        )
+
+    nesting_key = "spinflip_nesting_soft"
+    nesting_available = [r for r in results if nesting_key in r.extra and np.isfinite(float(r.extra[nesting_key]))]
+    if nesting_available:
+        nonzero_nesting = [r for r in nesting_available if not r.q.is_gamma]
+        qstar_nesting = max(nonzero_nesting if nonzero_nesting else nesting_available, key=lambda r: float(r.extra[nesting_key]))
+        out["spinflip_nesting_at_qstar"] = float(qstar_nesting.extra[nesting_key])
+        out["qstar_spinflip_nesting_qx_Ainv"] = float(qstar_nesting.q.qx_mbz_Ainv)
+        out["qstar_spinflip_nesting_qy_Ainv"] = float(qstar_nesting.q.qy_mbz_Ainv)
+        out["qstar_nesting_qnorm_Ainv"] = float(qstar_nesting.q.q_norm_mbz_Ainv)
+        if "qstar_qx_mbz_Ainv" in out:
+            dq = np.array(
+                [
+                    float(out["qstar_qx_mbz_Ainv"]) - qstar_nesting.q.qx_mbz_Ainv,
+                    float(out["qstar_qy_mbz_Ainv"]) - qstar_nesting.q.qy_mbz_Ainv,
+                ],
+                dtype=float,
+            )
+            out["qstar_chi_minus_qstar_nesting_distance_Ainv"] = float(np.linalg.norm(dq))
 
     jdos_key = "jdos_total_cell_meV_inv2"
     jdos_available = [r for r in results if jdos_key in r.extra]

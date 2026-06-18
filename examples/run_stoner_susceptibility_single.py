@@ -34,6 +34,7 @@ from tdbg_scf.susceptibility import (
 )
 from tdbg_scf.susceptibility.workflow import write_single_point_outputs
 from tdbg_scf.filling import filling_to_density_cm2
+from tdbg_scf.lattice import MoireGeometry
 from tdbg_scf.stoner.full_band import (
     explicit_flavor_dos_at_mu,
     layer_polarizations,
@@ -229,7 +230,8 @@ def stoner_detail_row(state, args: argparse.Namespace) -> dict:
 
 def build_parser() -> argparse.ArgumentParser:
     ap = argparse.ArgumentParser(description="Finite-Q transverse susceptibility on a Stoner-after TDBG state")
-    ap.add_argument("--n-cm2", type=float, required=True)
+    ap.add_argument("--n-cm2", type=float, default=None)
+    ap.add_argument("--nu-total", type=float, default=None)
     ap.add_argument("--D-Vnm", type=float, required=True)
     ap.add_argument("--theta-deg", type=float, default=1.35)
     ap.add_argument("--cutoff", type=int, default=1)
@@ -257,16 +259,27 @@ def build_parser() -> argparse.ArgumentParser:
     ap.add_argument("--main-vertex-model", choices=["su4_diag", "su2_hund_factor2"], default="su4_diag")
     add_bool_optional_arg(ap, "also-run-hund-factor2", default=True)
     ap.add_argument("--hund-transverse-factor", type=float, default=2.0)
-    ap.add_argument("--occupation-mode", choices=["flavor_mu", "common_mu"], default="flavor_mu")
+    ap.add_argument("--occupation-mode", choices=["equilibrium_common_mu", "flavor_mu", "common_mu"], default="equilibrium_common_mu")
     ap.add_argument("--spin-flip-mode", choices=["plus", "minus", "both_pm"], default="both_pm")
     add_bool_optional_arg(ap, "legacy-diagnostics", default=True)
-    ap.add_argument("--q-mode", choices=["folded_grid", "unfolded_diagonalize", "folded_grid_with_G_shift"], default="folded_grid")
+    ap.add_argument("--q-mode", choices=["folded_grid", "unfolded_diagonalize", "folded_grid_with_G_shift"], default="folded_grid_with_G_shift")
     ap.add_argument("--q-stride", type=int, default=1)
     ap.add_argument("--max-abs-q-step", type=int, default=None)
+    ap.add_argument("--plot-key", type=str, default="lambda_su4_diag_soft")
     ap.add_argument("--no-layer-matrix", action="store_true")
     add_stoner_detail_args(ap)
     ap.add_argument("--out", type=Path, required=True)
     return ap
+
+
+def resolve_n_cm2_from_args(args: argparse.Namespace) -> float:
+    if (args.n_cm2 is None) == (args.nu_total is None):
+        raise ValueError("provide exactly one of --n-cm2 and --nu-total")
+    if args.n_cm2 is not None:
+        return float(args.n_cm2)
+    geom = MoireGeometry(theta_deg=float(args.theta_deg), a_cc_A=float(args.a_cc_A), valley=int(args.scf_valley))
+    A_M_A2 = float((2.0 * np.pi) ** 2 / geom.mBZ_area_A2_inv)
+    return filling_to_density_cm2(float(args.nu_total), A_M_A2)
 
 
 def save_jdos_qmap_figure(out: Path, qdf) -> None:
@@ -430,9 +443,10 @@ def save_qstar_contour_overlays(out: Path, summary: dict, args: argparse.Namespa
 def main() -> None:
     args = build_parser().parse_args()
     args.out.mkdir(parents=True, exist_ok=True)
+    n_cm2 = resolve_n_cm2_from_args(args)
 
     state = solve_full_scf_stoner_state(
-        n_cm2=args.n_cm2,
+        n_cm2=n_cm2,
         D_Vnm=args.D_Vnm,
         theta_deg=args.theta_deg,
         cutoff=args.cutoff,
@@ -501,12 +515,15 @@ def main() -> None:
 
     qdf = q_results_to_dataframe(q_results)
     fig, ax = plt.subplots(figsize=(5, 4), constrained_layout=True)
-    sc = ax.scatter(qdf["qx_Ainv"], qdf["qy_Ainv"], c=qdf["lambda_u_plus_hund"], s=36)
+    plot_key = args.plot_key if args.plot_key in qdf.columns else "lambda_u_plus_hund"
+    sc = ax.scatter(qdf["qx_mbz_Ainv"] if "qx_mbz_Ainv" in qdf.columns else qdf["qx_Ainv"],
+                    qdf["qy_mbz_Ainv"] if "qy_mbz_Ainv" in qdf.columns else qdf["qy_Ainv"],
+                    c=qdf[plot_key], s=36)
     ax.set_xlabel(r"$Q_x$ [$\AA^{-1}$]")
     ax.set_ylabel(r"$Q_y$ [$\AA^{-1}$]")
-    ax.set_title("Stoner-after transverse susceptibility")
+    ax.set_title(f"Stoner-after transverse susceptibility: {plot_key}")
     cb = fig.colorbar(sc, ax=ax)
-    cb.set_label(r"$\lambda_{U+J}(Q)$")
+    cb.set_label(plot_key)
     fig.savefig(args.out / "susceptibility_qmap.png", dpi=180)
     plt.close(fig)
     save_jdos_qmap_figure(args.out, qdf)

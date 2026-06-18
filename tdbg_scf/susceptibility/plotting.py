@@ -187,3 +187,99 @@ def plot_finite_q_outputs(
         "generated": generated,
         "skipped": skipped,
     }
+
+
+def _save_pdf_png(fig, out_base: Path) -> list[str]:
+    out_base = Path(out_base)
+    out_base.parent.mkdir(parents=True, exist_ok=True)
+    paths = []
+    for suffix in (".pdf", ".png"):
+        path = out_base.with_suffix(suffix)
+        fig.savefig(path, dpi=220)
+        paths.append(str(path))
+    return paths
+
+
+def plot_fixed_nu_Dscan_overview(scan_csv: Path, out_dir: Path) -> dict:
+    import matplotlib
+
+    matplotlib.use("Agg")
+    import matplotlib.pyplot as plt
+
+    df = pd.read_csv(scan_csv)
+    if "chi_status" in df.columns:
+        df = df[df["chi_status"] == "ok"].copy()
+    df = df.sort_values("D_Vnm", kind="stable")
+    out_dir = Path(out_dir)
+
+    fig, axes = plt.subplots(3, 1, figsize=(6.2, 7.0), sharex=True, constrained_layout=True)
+    D = pd.to_numeric(df["D_Vnm"], errors="coerce")
+    if "stoner_spin_polarization_norm" in df.columns:
+        spin = pd.to_numeric(df["stoner_spin_polarization_norm"], errors="coerce")
+    else:
+        spin = pd.to_numeric(df.get("spin_polarization_norm", np.nan), errors="coerce")
+    axes[0].plot(D, spin, marker="o", lw=1.1)
+    axes[0].set_ylabel("spin pol.")
+
+    if "DOS_active_flavor_EF" in df.columns:
+        axes[1].plot(D, pd.to_numeric(df["DOS_active_flavor_EF"], errors="coerce"), marker="o", lw=1.1)
+    axes[1].set_ylabel("active DOS(EF)")
+
+    if "finite_q_delta_normalized" in df.columns:
+        axes[2].plot(D, pd.to_numeric(df["finite_q_delta_normalized"], errors="coerce"), marker="o", lw=1.1)
+    axes[2].axhline(0.0, color="0.5", lw=0.8, ls="--")
+    axes[2].set_ylabel(r"$\Delta_{\rm fQ}$")
+    axes[2].set_xlabel("D (V/nm)")
+    paths = _save_pdf_png(fig, out_dir / "fig_fixed_nu_Dscan_overview")
+    plt.close(fig)
+    return {"figure": "fig_fixed_nu_Dscan_overview", "paths": paths}
+
+
+def plot_representative_qmaps(points_root: Path, representative_D: Iterable[float], out_dir: Path, key: str = "lambda_su4_diag_soft") -> dict:
+    import matplotlib
+
+    matplotlib.use("Agg")
+    import matplotlib.pyplot as plt
+
+    from .dscan import D_point_label
+
+    reps = [float(x) for x in representative_D]
+    if not reps:
+        return {"figure": "fig_representative_Q_maps", "paths": [], "skipped": "no representative D values"}
+    fig, axes = plt.subplots(1, len(reps), figsize=(4.0 * len(reps), 3.4), squeeze=False, constrained_layout=True)
+    generated = 0
+    for ax, D in zip(axes.ravel(), reps):
+        csv = Path(points_root) / D_point_label(D) / "susceptibility_qmap.csv"
+        if not csv.exists():
+            ax.set_axis_off()
+            continue
+        qdf = pd.read_csv(csv)
+        if key not in qdf.columns:
+            ax.set_axis_off()
+            continue
+        gamma = qdf[qdf.get("is_gamma", False).astype(bool)]
+        gamma_value = float(gamma.iloc[0][key]) if len(gamma) else float(pd.to_numeric(qdf[key], errors="coerce").max())
+        values = pd.to_numeric(qdf[key], errors="coerce") / gamma_value - 1.0 if abs(gamma_value) > 1e-14 else pd.to_numeric(qdf[key], errors="coerce")
+        xkey = "qx_mbz_Ainv" if "qx_mbz_Ainv" in qdf.columns else "qx_Ainv"
+        ykey = "qy_mbz_Ainv" if "qy_mbz_Ainv" in qdf.columns else "qy_Ainv"
+        sc = ax.scatter(qdf[xkey], qdf[ykey], c=values, s=28, cmap="coolwarm")
+        ax.scatter([0.0], [0.0], marker="+", color="k", s=60)
+        ax.set_aspect("equal", adjustable="box")
+        ax.set_title(f"D={D:.4g}")
+        fig.colorbar(sc, ax=ax, shrink=0.8)
+        generated += 1
+    paths = _save_pdf_png(fig, Path(out_dir) / "fig_representative_Q_maps") if generated else []
+    plt.close(fig)
+    return {"figure": "fig_representative_Q_maps", "paths": paths}
+
+
+def plot_q_linecuts(*args, **kwargs) -> dict:
+    return {"figure": "fig_Q_linecuts_through_transition", "paths": [], "skipped": "linecut extraction not requested"}
+
+
+def plot_vhs_spinflip_nesting(*args, **kwargs) -> dict:
+    return {"figure": "fig_VHS_spinflip_nesting", "paths": [], "skipped": "representative nesting detail not requested"}
+
+
+def plot_convergence_summary(*args, **kwargs) -> dict:
+    return {"figure": "convergence_summary", "paths": [], "skipped": "no convergence CSV supplied"}

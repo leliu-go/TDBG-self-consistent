@@ -28,6 +28,8 @@ def test_single_point_susceptibility_help():
     assert "--no-stoner-detail-outputs" in result.stdout
     assert "--jdos-sigma-meV" in result.stdout
     assert "--no-jdos" in result.stdout
+    assert "--plot-key" in result.stdout
+    assert "--nu-total" in result.stdout
 
 
 def test_nd_mapping_susceptibility_help():
@@ -53,6 +55,35 @@ def test_nd_mapping_susceptibility_help():
     assert "--D-min-Vnm" in result.stdout
     assert "--out" in result.stdout
     assert "--no-plots" in result.stdout
+
+
+def test_fixed_nu_dscan_susceptibility_help():
+    result = subprocess.run(
+        [sys.executable, "examples/run_fixed_nu_Dscan_stoner_susceptibility.py", "--help"],
+        check=False,
+        text=True,
+        capture_output=True,
+    )
+
+    assert result.returncode == 0
+    assert "--nu-total" in result.stdout
+    assert "--D-values" in result.stdout
+    assert "--selected-D-values" in result.stdout
+    assert "--occupation-mode" in result.stdout
+    assert "--q-mode" in result.stdout
+
+
+def test_plot_fixed_nu_dscan_susceptibility_help():
+    result = subprocess.run(
+        [sys.executable, "examples/plot_fixed_nu_Dscan_stoner_susceptibility.py", "--help"],
+        check=False,
+        text=True,
+        capture_output=True,
+    )
+
+    assert result.returncode == 0
+    assert "--scan-csv" in result.stdout
+    assert "--representative-D" in result.stdout
 
 
 def test_plot_finite_q_susceptibility_help():
@@ -97,6 +128,9 @@ def test_single_point_susceptibility_defaults_to_projected_scf_flow(tmp_path):
     assert args.projected_reference_mode == "uploaded_D"
     assert args.kBT_meV == 0.2
     assert args.eps_perp == 3.0
+    assert args.occupation_mode == "equilibrium_common_mu"
+    assert args.q_mode == "folded_grid_with_G_shift"
+    assert args.plot_key == "lambda_su4_diag_soft"
 
 
 def test_single_point_susceptibility_keeps_legacy_scf_iteration_alias_separate(tmp_path):

@@ -180,7 +180,8 @@ def lindhard_static_ratio_flavor_mu(
     mu_final_meV: float,
     kBT_meV: float,
     denom_tol_meV: float,
-) -> np.ndarray:
+    return_diagnostics: bool = False,
+) -> np.ndarray | tuple[np.ndarray, dict[str, float]]:
     """Return flavor-resolved (f_i - f_f)/(E_f - E_i)."""
 
     Ei = np.asarray(E_initial_meV, dtype=float)
@@ -197,6 +198,19 @@ def lindhard_static_ratio_flavor_mu(
     mask = np.abs(den) > float(denom_tol_meV)
     out = np.array(limiting, dtype=float, copy=True)
     out[mask] = num[mask] / den[mask]
+    small = ~mask
+    noneq = small & (np.abs(num) > 1e-10) & (abs(mui - muf) > 1e-10)
+    if np.any(noneq):
+        sign = np.sign(den[noneq])
+        sign = np.where(sign == 0.0, np.sign(num[noneq]), sign)
+        sign = np.where(sign == 0.0, 1.0, sign)
+        out[noneq] = num[noneq] / (sign * float(denom_tol_meV))
+    diag = {
+        "regulated_nonequilibrium_pairs": int(np.count_nonzero(noneq)),
+        "regulated_nonequilibrium_abs_weight": float(np.sum(np.abs(num[noneq]))),
+    }
+    if return_diagnostics:
+        return out, diag
     return out
 
 
@@ -316,6 +330,53 @@ def compute_fermi_surface_jdos_q(
     return out
 
 
+def compute_spinflip_nesting_q(
+    q: QPoint,
+    grid_shape: tuple[int, int],
+    weights: np.ndarray,
+    A_M_A2: float,
+    evals_i: np.ndarray,
+    evecs_i: np.ndarray,
+    evals_f: np.ndarray,
+    evecs_f: np.ndarray,
+    mu_i_meV: float,
+    mu_f_meV: float,
+    params: SusceptibilityParams,
+    folded_mode: bool,
+    folded_with_G_shift: bool = False,
+    G_indices: np.ndarray | None = None,
+) -> float:
+    Nk = evals_i.shape[0]
+    if folded_mode and folded_with_G_shift:
+        kq_indices, g_shifts = folded_indices_and_shifts_for_q(q, grid_shape)
+    else:
+        kq_indices = folded_indices_for_q(q, grid_shape) if folded_mode else np.arange(Nk, dtype=int)
+        g_shifts = np.zeros((Nk, 2), dtype=int)
+
+    total = 0.0
+    for ik in range(Nk):
+        ikq = int(kq_indices[ik])
+        Ei_all = np.asarray(evals_i[ik], dtype=float)
+        Ef_all = np.asarray(evals_f[ikq], dtype=float)
+        idx_i = _jdos_band_indices_near_mu(Ei_all, mu_i_meV, params.energy_window_meV, params.max_bands_per_k)
+        idx_f = _jdos_band_indices_near_mu(Ef_all, mu_f_meV, params.energy_window_meV, params.max_bands_per_k)
+        if idx_i.size == 0 or idx_f.size == 0:
+            continue
+        Vi = evecs_i[ik][:, idx_i]
+        Vf_all = evecs_f[ikq]
+        if folded_with_G_shift:
+            if G_indices is None and np.any(g_shifts[ik] != 0):
+                raise ValueError("folded_grid_with_G_shift requires plane-wave G indices")
+            if G_indices is not None:
+                Vf_all = _shift_plane_wave_evecs(Vf_all, G_indices, g_shifts[ik])
+        Vf = Vf_all[:, idx_f]
+        lam = _pair_form_factors_total(Vf, Vi)
+        di = gaussian_delta(Ei_all[idx_i] - float(mu_i_meV), params.nesting_sigma_meV)
+        df = gaussian_delta(Ef_all[idx_f] - float(mu_f_meV), params.nesting_sigma_meV)
+        total += float(A_M_A2) * float(weights[ik]) * float(np.sum((df[:, None] * di[None, :]) * np.abs(lam) ** 2))
+    return float(total)
+
+
 def _pair_form_factors_total(Vf: np.ndarray, Vi: np.ndarray) -> np.ndarray:
     return Vf.conj().T @ Vi
 
@@ -362,7 +423,7 @@ def _accumulate_one_valley_pair(
     folded_mode: bool,
     folded_with_G_shift: bool = False,
     G_indices: np.ndarray | None = None,
-) -> tuple[float, np.ndarray | None]:
+) -> tuple[float, np.ndarray | None, dict[str, float]]:
     """Bubble for one valley spin pair: down(k) -> up(k+Q)."""
 
     Nk = evals_i.shape[0]
@@ -377,6 +438,10 @@ def _accumulate_one_valley_pair(
         kq_indices = folded_indices_for_q(q, grid_shape) if folded_mode else np.arange(Nk, dtype=int)
         g_shifts = np.zeros((Nk, 2), dtype=int)
     chi = 0.0
+    diagnostics = {
+        "regulated_nonequilibrium_pairs": 0,
+        "regulated_nonequilibrium_abs_weight": 0.0,
+    }
     chi_layer = None
     if layer_masks is not None and params.include_layer_matrix:
         chi_layer = np.zeros((int(layer_masks.shape[0]), int(layer_masks.shape[0])), dtype=np.complex128)
@@ -390,13 +455,24 @@ def _accumulate_one_valley_pair(
 
         Ei = Ei_all[idx_i]
         Ef = Ef_all[idx_f]
-        R = lindhard_static_ratio_flavor_mu(Ei, Ef, mu_i_meV, mu_f_meV, params.kBT_meV, params.denom_tol_meV)
+        R, diag = lindhard_static_ratio_flavor_mu(
+            Ei,
+            Ef,
+            mu_i_meV,
+            mu_f_meV,
+            params.kBT_meV,
+            params.denom_tol_meV,
+            return_diagnostics=True,
+        )
+        diagnostics["regulated_nonequilibrium_pairs"] += int(diag["regulated_nonequilibrium_pairs"])
+        diagnostics["regulated_nonequilibrium_abs_weight"] += float(diag["regulated_nonequilibrium_abs_weight"])
         Vi = evecs_i[ik][:, idx_i]
         Vf_all = evecs_f[ikq]
         if folded_with_G_shift:
-            if G_indices is None:
+            if G_indices is None and np.any(g_shifts[ik] != 0):
                 raise ValueError("folded_grid_with_G_shift requires plane-wave G indices")
-            Vf_all = _shift_plane_wave_evecs(Vf_all, G_indices, g_shifts[ik])
+            if G_indices is not None:
+                Vf_all = _shift_plane_wave_evecs(Vf_all, G_indices, g_shifts[ik])
         Vf = Vf_all[:, idx_f]
 
         lam = _pair_form_factors_total(Vf, Vi)
@@ -409,7 +485,7 @@ def _accumulate_one_valley_pair(
 
     if chi_layer is not None and params.hermitize_layer_matrix:
         chi_layer = 0.5 * (chi_layer + chi_layer.conj().T)
-    return float(np.real(chi)), chi_layer
+    return float(np.real(chi)), chi_layer, diagnostics
 
 
 def _lambda_u_plus_hund(chi_K: float, chi_Kp: float, ref: StonerReference) -> float:
@@ -504,8 +580,8 @@ def compute_transverse_chi_q(
 
     if params.q_mode not in {"folded_grid", "unfolded_diagonalize", "folded_grid_with_G_shift"}:
         raise ValueError("params.q_mode must be 'folded_grid', 'folded_grid_with_G_shift', or 'unfolded_diagonalize'")
-    if params.occupation_mode not in {"flavor_mu", "common_mu"}:
-        raise ValueError("params.occupation_mode must be 'flavor_mu' or 'common_mu'")
+    if params.occupation_mode not in {"flavor_mu", "common_mu", "equilibrium_common_mu"}:
+        raise ValueError("params.occupation_mode must be 'flavor_mu', 'common_mu', or 'equilibrium_common_mu'")
     if params.spin_flip_mode not in {"plus", "minus", "both_pm"}:
         raise ValueError("params.spin_flip_mode must be 'plus', 'minus', or 'both_pm'")
 
@@ -514,6 +590,8 @@ def compute_transverse_chi_q(
     mu_bar = mu_f + sigma
     if params.occupation_mode == "common_mu":
         mu_bar = np.full(4, float(ref.mu_common_meV), dtype=float)
+    if params.occupation_mode == "equilibrium_common_mu":
+        mu_bar = np.full(4, float(ref.mu_eq_meV), dtype=float)
     folded_mode = params.q_mode in {"folded_grid", "folded_grid_with_G_shift"}
     folded_with_G_shift = params.q_mode == "folded_grid_with_G_shift"
 
@@ -563,7 +641,7 @@ def compute_transverse_chi_q(
         )
 
     if _spin_flip_enabled(params, "plus"):
-        chi_K_plus, layer_K_plus = _accumulate_one_valley_pair(
+        chi_K_plus, layer_K_plus, diag_K_plus = _accumulate_one_valley_pair(
             evals_i=evals_K_meV + sigma[2],
             evecs_i=evecs_K,
             evals_f=evals_K_up_q,
@@ -580,7 +658,7 @@ def compute_transverse_chi_q(
             folded_with_G_shift=folded_with_G_shift,
             G_indices=plane_wave_G_indices,
         )
-        chi_Kp_plus, layer_Kp_plus = _accumulate_one_valley_pair(
+        chi_Kp_plus, layer_Kp_plus, diag_Kp_plus = _accumulate_one_valley_pair(
             evals_i=evals_Kp_meV + sigma[3],
             evecs_i=evecs_Kp,
             evals_f=evals_Kp_up_q,
@@ -597,9 +675,13 @@ def compute_transverse_chi_q(
             folded_with_G_shift=folded_with_G_shift,
             G_indices=plane_wave_G_indices,
         )
+        extra["flavor_mu_regulated_pairs_plus"] = int(diag_K_plus["regulated_nonequilibrium_pairs"] + diag_Kp_plus["regulated_nonequilibrium_pairs"])
+        extra["flavor_mu_regulated_abs_weight_plus"] = float(
+            diag_K_plus["regulated_nonequilibrium_abs_weight"] + diag_Kp_plus["regulated_nonequilibrium_abs_weight"]
+        )
 
     if _spin_flip_enabled(params, "minus"):
-        chi_K_minus, layer_K_minus = _accumulate_one_valley_pair(
+        chi_K_minus, layer_K_minus, diag_K_minus = _accumulate_one_valley_pair(
             evals_i=evals_K_meV + sigma[0],
             evecs_i=evecs_K,
             evals_f=evals_K_down_q,
@@ -616,7 +698,7 @@ def compute_transverse_chi_q(
             folded_with_G_shift=folded_with_G_shift,
             G_indices=plane_wave_G_indices,
         )
-        chi_Kp_minus, layer_Kp_minus = _accumulate_one_valley_pair(
+        chi_Kp_minus, layer_Kp_minus, diag_Kp_minus = _accumulate_one_valley_pair(
             evals_i=evals_Kp_meV + sigma[1],
             evecs_i=evecs_Kp,
             evals_f=evals_Kp_down_q,
@@ -633,6 +715,79 @@ def compute_transverse_chi_q(
             folded_with_G_shift=folded_with_G_shift,
             G_indices=plane_wave_G_indices,
         )
+        extra["flavor_mu_regulated_pairs_minus"] = int(diag_K_minus["regulated_nonequilibrium_pairs"] + diag_Kp_minus["regulated_nonequilibrium_pairs"])
+        extra["flavor_mu_regulated_abs_weight_minus"] = float(
+            diag_K_minus["regulated_nonequilibrium_abs_weight"] + diag_Kp_minus["regulated_nonequilibrium_abs_weight"]
+        )
+
+    if params.include_spinflip_nesting:
+        nesting_plus = nesting_minus = None
+        if _spin_flip_enabled(params, "plus"):
+            nesting_plus = compute_spinflip_nesting_q(
+                q,
+                grid_shape,
+                weights_arr,
+                float(A_M_A2),
+                evals_K_meV + sigma[2],
+                evecs_K,
+                evals_K_up_q,
+                evecs_K_f,
+                float(mu_bar[2]),
+                float(mu_bar[0]),
+                params,
+                folded_mode,
+                folded_with_G_shift,
+                plane_wave_G_indices,
+            ) + compute_spinflip_nesting_q(
+                q,
+                grid_shape,
+                weights_arr,
+                float(A_M_A2),
+                evals_Kp_meV + sigma[3],
+                evecs_Kp,
+                evals_Kp_up_q,
+                evecs_Kp_f,
+                float(mu_bar[3]),
+                float(mu_bar[1]),
+                params,
+                folded_mode,
+                folded_with_G_shift,
+                plane_wave_G_indices,
+            )
+            extra["spinflip_nesting_plus"] = float(nesting_plus)
+        if _spin_flip_enabled(params, "minus"):
+            nesting_minus = compute_spinflip_nesting_q(
+                q,
+                grid_shape,
+                weights_arr,
+                float(A_M_A2),
+                evals_K_meV + sigma[0],
+                evecs_K,
+                evals_K_down_q,
+                evecs_K_f,
+                float(mu_bar[0]),
+                float(mu_bar[2]),
+                params,
+                folded_mode,
+                folded_with_G_shift,
+                plane_wave_G_indices,
+            ) + compute_spinflip_nesting_q(
+                q,
+                grid_shape,
+                weights_arr,
+                float(A_M_A2),
+                evals_Kp_meV + sigma[1],
+                evecs_Kp,
+                evals_Kp_down_q,
+                evecs_Kp_f,
+                float(mu_bar[1]),
+                float(mu_bar[3]),
+                params,
+                folded_mode,
+                folded_with_G_shift,
+                plane_wave_G_indices,
+            )
+            extra["spinflip_nesting_minus"] = float(nesting_minus)
 
     models = make_valley_vertex_models(
         ref.u_cell_meV,
@@ -660,6 +815,13 @@ def compute_transverse_chi_q(
             else:
                 minus_lam, minus_vec = generalized_stoner_lambda(np.diag([chi_K_minus, chi_Kp_minus]), spec.gamma)
         selected, direction = _model_selected(plus_lam, minus_lam)
+        soft_channel = str(ref.soft_transverse_channel)
+        if soft_channel == "plus":
+            soft_lam = plus_lam
+        elif soft_channel == "minus":
+            soft_lam = minus_lam
+        else:
+            soft_lam = selected
         vec = plus_vec if direction == "plus" else minus_vec
         layer_pair = (layer_K_plus, layer_Kp_plus) if direction == "plus" else (layer_K_minus, layer_Kp_minus)
         chi_s0_model, chi_sD_model, od_model, ratio_model, _ = _selected_layer_diagnostics(
@@ -669,6 +831,7 @@ def compute_transverse_chi_q(
             "plus": plus_lam,
             "minus": minus_lam,
             "selected": selected,
+            "soft": soft_lam,
             "direction": direction,
             "vec": vec if vec is not None else np.ones(2, dtype=np.complex128),
             "chi_s0": chi_s0_model,
@@ -677,6 +840,7 @@ def compute_transverse_chi_q(
             "layer_dipole_ratio": ratio_model,
         }
         extra[f"{model_name}_spin_flip_direction"] = direction
+        extra[f"lambda_{model_name}_soft"] = float(soft_lam) if soft_lam is not None else np.nan
         if chi_s0_model is not None:
             extra[f"{model_name}_chi_s0"] = float(chi_s0_model)
             extra[f"{model_name}_chi_sD"] = float(chi_sD_model)
@@ -700,6 +864,17 @@ def compute_transverse_chi_q(
     if selected_name not in model_payload:
         selected_name = "su4_diag"
     selected_payload = model_payload[selected_name]
+    extra["soft_transverse_channel"] = str(ref.soft_transverse_channel)
+    extra["channel_switch_warning"] = bool(
+        ref.soft_transverse_channel in {"plus", "minus"} and selected_payload["direction"] != ref.soft_transverse_channel
+    )
+    if params.include_spinflip_nesting:
+        if ref.soft_transverse_channel == "plus":
+            extra["spinflip_nesting_soft"] = float(extra.get("spinflip_nesting_plus", np.nan))
+        elif ref.soft_transverse_channel == "minus":
+            extra["spinflip_nesting_soft"] = float(extra.get("spinflip_nesting_minus", np.nan))
+        else:
+            extra["spinflip_nesting_soft"] = float(max(extra.get("spinflip_nesting_plus", np.nan), extra.get("spinflip_nesting_minus", np.nan)))
     selected_vec = np.asarray(selected_payload["vec"], dtype=np.complex128)
     chi_layer = None
     chi_s0 = chi_sD = leading = overlap = None
