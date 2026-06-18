@@ -71,6 +71,8 @@ def test_fixed_nu_dscan_susceptibility_help():
     assert "--selected-D-values" in result.stdout
     assert "--occupation-mode" in result.stdout
     assert "--q-mode" in result.stdout
+    assert "flavor_mu" not in result.stdout
+    assert "folded_grid," not in result.stdout
 
 
 def test_plot_fixed_nu_dscan_susceptibility_help():
@@ -131,6 +133,64 @@ def test_single_point_susceptibility_defaults_to_projected_scf_flow(tmp_path):
     assert args.occupation_mode == "equilibrium_common_mu"
     assert args.q_mode == "folded_grid_with_G_shift"
     assert args.plot_key == "lambda_su4_diag_soft"
+
+
+def test_fixed_nu_dscan_rejects_legacy_reference_and_q_modes():
+    import pytest
+    from examples.run_fixed_nu_Dscan_stoner_susceptibility import build_parser
+
+    base = [
+        "--n-cm2",
+        "1.88e12",
+        "--D-values",
+        "-0.6",
+        "--out",
+        "dummy",
+    ]
+
+    with pytest.raises(SystemExit):
+        build_parser().parse_args(base + ["--occupation-mode", "flavor_mu"])
+    with pytest.raises(SystemExit):
+        build_parser().parse_args(base + ["--occupation-mode", "common_mu"])
+    with pytest.raises(SystemExit):
+        build_parser().parse_args(base + ["--q-mode", "folded_grid"])
+
+
+def test_fixed_nu_dscan_filters_legacy_summary_columns():
+    from examples.run_fixed_nu_Dscan_stoner_susceptibility import filter_paper_summary_record
+
+    filtered = filter_paper_summary_record(
+        {
+            "D_Vnm": -0.4,
+            "lambda_gamma_su4_soft": 1.0,
+            "finite_q_delta_normalized": 0.2,
+            "finite_q_wins": True,
+            "finite_q_ratio_su4_diag": 1.2,
+            "gamma_lambda_u_plus_hund": 0.9,
+            "lambda_legacy_scalar_total_selected": 3.0,
+            "qstar_legacy_offdiag_J_qnorm_Ainv": 0.1,
+        }
+    )
+
+    assert "lambda_gamma_su4_soft" in filtered
+    assert "finite_q_delta_normalized" in filtered
+    assert "finite_q_wins" not in filtered
+    assert "finite_q_ratio_su4_diag" not in filtered
+    assert "gamma_lambda_u_plus_hund" not in filtered
+    assert "lambda_legacy_scalar_total_selected" not in filtered
+    assert "qstar_legacy_offdiag_J_qnorm_Ainv" not in filtered
+
+
+def test_single_point_plot_key_must_exist():
+    import pandas as pd
+    import pytest
+    from examples.run_stoner_susceptibility_single import resolve_plot_key
+
+    qdf = pd.DataFrame({"lambda_su4_diag_soft": [1.0], "lambda_u_plus_hund": [2.0]})
+
+    assert resolve_plot_key(qdf, "lambda_su4_diag_soft") == "lambda_su4_diag_soft"
+    with pytest.raises(ValueError):
+        resolve_plot_key(qdf, "not_a_column")
 
 
 def test_single_point_susceptibility_keeps_legacy_scf_iteration_alias_separate(tmp_path):

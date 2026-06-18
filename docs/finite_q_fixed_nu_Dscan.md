@@ -57,15 +57,9 @@ first_mbz_only = true
 soft transverse channel tracked from the sign of spin polarization
 ```
 
-Legacy modes remain available:
-
-```text
---occupation-mode flavor_mu
---q-mode folded_grid
-```
-
-Treat these as diagnostics unless the saved reference metadata shows negligible
-`mu_eff_spread_meV` and filling mismatch.
+The fixed-filling paper workflow intentionally rejects the older diagnostic
+reference modes and plain folded q mode. Use older scripts only for reproducing
+old exploratory data, not for the fixed-nu paper-level scan.
 
 ## Main columns
 
@@ -126,4 +120,3 @@ python -u examples\plot_fixed_nu_Dscan_stoner_susceptibility.py `
 ```
 
 The plotter saves both PDF and PNG where implemented.
-

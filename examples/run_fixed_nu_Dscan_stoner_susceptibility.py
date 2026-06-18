@@ -34,6 +34,44 @@ from tdbg_scf.susceptibility.dscan import (
 from tdbg_scf.susceptibility.vhs import robust_vhs_diagnostics
 
 
+PAPER_SUMMARY_DROP_EXACT = {
+    "lambda_u",
+    "lambda_u_plus_hund",
+    "finite_q_wins",
+    "finite_q_lambda_ratio",
+    "qstar_nonzero_lambda_u_plus_hund",
+    "gamma_lambda_u_plus_hund",
+    "finite_q_wins_su4_diag",
+    "finite_q_ratio_su4_diag",
+    "gamma_lambda_su4_diag_selected",
+    "qstar_nonzero_lambda_su4_diag_selected",
+    "finite_q_wins_su2_hund_factor2",
+    "finite_q_ratio_su2_hund_factor2",
+    "gamma_lambda_su2_hund_factor2_selected",
+    "qstar_nonzero_lambda_su2_hund_factor2_selected",
+}
+
+PAPER_SUMMARY_DROP_PREFIXES = (
+    "lambda_legacy_",
+    "gamma_lambda_legacy_",
+    "qstar_legacy_",
+    "qstar_nonzero_lambda_legacy_",
+    "finite_q_ratio_legacy_",
+    "finite_q_wins_legacy_",
+)
+
+
+def filter_paper_summary_record(record: dict) -> dict:
+    out = {}
+    for key, value in record.items():
+        if key in PAPER_SUMMARY_DROP_EXACT:
+            continue
+        if any(str(key).startswith(prefix) for prefix in PAPER_SUMMARY_DROP_PREFIXES):
+            continue
+        out[key] = value
+    return out
+
+
 def build_parser() -> argparse.ArgumentParser:
     ap = argparse.ArgumentParser(description="Fixed-filling D scan of Stoner-after finite-Q susceptibility.")
     group = ap.add_mutually_exclusive_group(required=True)
@@ -69,10 +107,9 @@ def build_parser() -> argparse.ArgumentParser:
     ap.add_argument("--main-vertex-model", choices=["su4_diag", "su2_hund_factor2"], default="su4_diag")
     add_bool_optional_arg(ap, "also-run-hund-factor2", default=True)
     ap.add_argument("--hund-transverse-factor", type=float, default=2.0)
-    ap.add_argument("--occupation-mode", choices=["equilibrium_common_mu", "flavor_mu", "common_mu"], default="equilibrium_common_mu")
+    ap.add_argument("--occupation-mode", choices=["equilibrium_common_mu"], default="equilibrium_common_mu")
     ap.add_argument("--spin-flip-mode", choices=["plus", "minus", "both_pm"], default="both_pm")
-    add_bool_optional_arg(ap, "legacy-diagnostics", default=True)
-    ap.add_argument("--q-mode", choices=["folded_grid", "unfolded_diagonalize", "folded_grid_with_G_shift"], default="folded_grid_with_G_shift")
+    ap.add_argument("--q-mode", choices=["folded_grid_with_G_shift", "unfolded_diagonalize"], default="folded_grid_with_G_shift")
     ap.add_argument("--q-stride", type=int, default=1)
     ap.add_argument("--max-abs-q-step", type=int, default=None)
     ap.add_argument("--dos-sigma-meV", type=float, default=1.0)
@@ -138,7 +175,7 @@ def run_point(point, args: argparse.Namespace, save_detail: bool) -> dict:
         hund_transverse_factor=args.hund_transverse_factor,
         occupation_mode=args.occupation_mode,
         spin_flip_mode=args.spin_flip_mode,
-        legacy_diagnostics=args.legacy_diagnostics,
+        legacy_diagnostics=False,
         include_layer_matrix=not args.no_layer_matrix,
         nesting_sigma_meV=args.dos_sigma_meV,
     )
@@ -158,6 +195,7 @@ def run_point(point, args: argparse.Namespace, save_detail: bool) -> dict:
     rec.update(robust_vhs_diagnostics(state, sigma_meV=args.dos_sigma_meV))
     if not bool(rec.get("reference_valid", False)):
         rec["finite_q_status"] = "invalid_reference"
+    rec = filter_paper_summary_record(rec)
     if save_detail:
         point_dir = args.out / "D_points" / D_point_label(point.D_Vnm)
         point_dir.mkdir(parents=True, exist_ok=True)
@@ -208,4 +246,3 @@ def main() -> None:
 
 if __name__ == "__main__":
     main()
-

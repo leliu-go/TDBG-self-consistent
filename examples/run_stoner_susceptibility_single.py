@@ -282,6 +282,13 @@ def resolve_n_cm2_from_args(args: argparse.Namespace) -> float:
     return filling_to_density_cm2(float(args.nu_total), A_M_A2)
 
 
+def resolve_plot_key(qdf, plot_key: str) -> str:
+    key = str(plot_key)
+    if key not in qdf.columns:
+        raise ValueError(f"--plot-key '{key}' is not present in susceptibility_qmap.csv")
+    return key
+
+
 def save_jdos_qmap_figure(out: Path, qdf) -> None:
     key = "jdos_total_cell_meV_inv2"
     if key not in qdf.columns:
@@ -515,7 +522,7 @@ def main() -> None:
 
     qdf = q_results_to_dataframe(q_results)
     fig, ax = plt.subplots(figsize=(5, 4), constrained_layout=True)
-    plot_key = args.plot_key if args.plot_key in qdf.columns else "lambda_u_plus_hund"
+    plot_key = resolve_plot_key(qdf, args.plot_key)
     sc = ax.scatter(qdf["qx_mbz_Ainv"] if "qx_mbz_Ainv" in qdf.columns else qdf["qx_Ainv"],
                     qdf["qy_mbz_Ainv"] if "qy_mbz_Ainv" in qdf.columns else qdf["qy_Ainv"],
                     c=qdf[plot_key], s=36)
