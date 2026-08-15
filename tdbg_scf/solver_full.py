@@ -59,7 +59,7 @@ class FullSCFSolver:
         if config.initial_U == "zero":
             U = np.zeros(4, dtype=float)
         else:
-            U = linear_potential_from_D(config.D_Vnm, strength=config.initial_U)
+            U = linear_potential_from_D(config.D_Vnm, strength=config.initial_U, D_sign=config.D_sign)
             U -= np.mean(U)
         mixer = make_mixer(config.mixer, **(config.mixer_kwargs or {}))
 

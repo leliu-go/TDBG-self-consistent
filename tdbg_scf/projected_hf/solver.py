@@ -82,7 +82,7 @@ class ProjectedHFSolver:
     def _initial_layer_potential(self, nu_total: float, D_Vnm: float) -> np.ndarray:
         if not self.params.uniform_layer_hartree:
             z = (np.arange(4, dtype=float) - 1.5) * float(self.params.d_layer_nm)
-            U = -float(D_Vnm) * z * 1000.0
+            U = float(self.params.D_sign) * float(D_Vnm) * z * 1000.0
             return U - np.mean(U)
         electro = self._electrostatics()
         _, n_bottom = electro.gate_densities(filling_to_density_a2(float(nu_total), self.A_M_A2), float(D_Vnm))

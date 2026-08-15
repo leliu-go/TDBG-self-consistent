@@ -165,7 +165,7 @@ def supplied_projector_U(args: argparse.Namespace, D_Vnm: float) -> np.ndarray |
     if args.projected_reference_mode == "zero":
         return np.zeros(4, dtype=float)
     strength = "bare" if args.projected_reference_mode == "bare_D" else "uploaded"
-    U = linear_potential_from_D(float(D_Vnm), strength=strength)
+    U = linear_potential_from_D(float(D_Vnm), strength=strength, D_sign=float(args.D_sign))
     U -= np.mean(U)
     return U
 

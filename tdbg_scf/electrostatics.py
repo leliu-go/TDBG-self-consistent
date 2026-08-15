@@ -49,18 +49,23 @@ class LayerElectrostatics:
         return gate_densities_from_n_D_a2(n_total_a2, self.D_sign * D_Vnm)
 
 
-def linear_potential_from_D(D_Vnm: float, strength: str = "uploaded") -> np.ndarray:
+def linear_potential_from_D(D_Vnm: float, strength: str = "uploaded", D_sign: float = -1.0) -> np.ndarray:
     """
     Initial layer-potential profile for TDBG.
 
     ``uploaded`` uses the relation in ABBATDBG2.py: D = 4 Zk / 330 V/nm,
     and U = (3/2, 1/2, -1/2, -3/2) Zk.
+    The input displacement is converted to the corresponding uploaded-sign
+    profile with ``D_profile = -D_sign * D_Vnm`` so that the default
+    ``D_sign=-1`` preserves the uploaded convention, while ``D_sign=+1``
+    follows the direct gate convention.
     """
+    D_profile_Vnm = -float(D_sign) * float(D_Vnm)
     if strength == "uploaded":
-        Zk = 330.0 * D_Vnm / 4.0
+        Zk = 330.0 * D_profile_Vnm / 4.0
         return np.array([1.5, 0.5, -0.5, -1.5], dtype=float) * Zk
     if strength == "bare":
         # Potential drop e D d between adjacent graphene layers in meV.
-        step = 1000.0 * 0.335 * D_Vnm
+        step = 1000.0 * 0.335 * D_profile_Vnm
         return np.array([1.5, 0.5, -0.5, -1.5], dtype=float) * step
     raise ValueError("strength must be 'uploaded' or 'bare'")

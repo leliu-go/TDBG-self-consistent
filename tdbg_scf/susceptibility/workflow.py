@@ -132,13 +132,13 @@ def _projected_reference_from_legacy(initial_U: str | None, projected_reference_
     return mapping.get(str(initial_U), projected_reference_mode)
 
 
-def _supplied_projector_U(D_Vnm: float, projected_reference_mode: str) -> np.ndarray | None:
+def _supplied_projector_U(D_Vnm: float, projected_reference_mode: str, D_sign: float) -> np.ndarray | None:
     if projected_reference_mode == "full_scf":
         return None
     if projected_reference_mode == "zero":
         return np.zeros(4, dtype=float)
     strength = "bare" if projected_reference_mode == "bare_D" else "uploaded"
-    U = linear_potential_from_D(float(D_Vnm), strength=strength)
+    U = linear_potential_from_D(float(D_Vnm), strength=strength, D_sign=float(D_sign))
     U -= np.mean(U)
     return U
 
@@ -199,7 +199,7 @@ def _run_scf_reference(
         raise ValueError("scf_source must be 'projected_8band' or 'full'")
 
     projected_reference_mode = _projected_reference_from_legacy(initial_U, projected_reference_mode)
-    supplied_U = _supplied_projector_U(D_Vnm, projected_reference_mode)
+    supplied_U = _supplied_projector_U(D_Vnm, projected_reference_mode, D_sign)
     reference_mode = "supplied_U"
     full_cfg = None
     if projected_reference_mode == "full_scf":
