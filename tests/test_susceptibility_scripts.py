@@ -1,6 +1,7 @@
 import subprocess
 import sys
 import argparse
+import json
 
 
 def test_single_point_susceptibility_help():
@@ -18,10 +19,11 @@ def test_single_point_susceptibility_help():
     assert "--main-vertex-model" in result.stdout
     assert "--occupation-mode" in result.stdout
     assert "--spin-flip-mode" in result.stdout
-    assert "--scf-source" in result.stdout
-    assert "--n-active" in result.stdout
-    assert "--selection" in result.stdout
-    assert "--projected-reference-mode" in result.stdout
+    assert "--scf-source" not in result.stdout
+    assert "--full-tol-meV" in result.stdout
+    assert "--n-active" not in result.stdout
+    assert "--selection" not in result.stdout
+    assert "--full-max-iter" in result.stdout
     assert "--dos-sigma-meV" in result.stdout
     assert "--points-per-segment" in result.stdout
     assert "--contour-band-count" in result.stdout
@@ -47,10 +49,11 @@ def test_nd_mapping_susceptibility_help():
     assert "--max-workers" in result.stdout
     assert "--main-vertex-model" in result.stdout
     assert "--occupation-mode" in result.stdout
-    assert "--scf-source" in result.stdout
-    assert "--n-active" in result.stdout
-    assert "--selection" in result.stdout
-    assert "--projected-reference-mode" in result.stdout
+    assert "--scf-source" not in result.stdout
+    assert "--full-tol-meV" in result.stdout
+    assert "--n-active" not in result.stdout
+    assert "--selection" not in result.stdout
+    assert "--full-max-iter" in result.stdout
     assert "--n-min-cm2" in result.stdout
     assert "--D-min-Vnm" in result.stdout
     assert "--out" in result.stdout
@@ -110,7 +113,7 @@ def test_nd_mapping_susceptibility_resolves_worker_count():
     assert resolve_workers("auto") >= 1
 
 
-def test_single_point_susceptibility_defaults_to_projected_scf_flow(tmp_path):
+def test_single_point_susceptibility_defaults_to_full_scf_flow(tmp_path):
     from examples.run_stoner_susceptibility_single import build_parser
 
     args = build_parser().parse_args(
@@ -124,11 +127,11 @@ def test_single_point_susceptibility_defaults_to_projected_scf_flow(tmp_path):
         ]
     )
 
-    assert args.scf_source == "projected_8band"
+    assert not hasattr(args, "scf_source")
+    assert args.full_max_iter == 60
+    assert args.full_tol_meV == 1e-4
     assert args.scf_valley == 1
-    assert args.n_active == 8
-    assert args.selection == "overlap"
-    assert args.projected_reference_mode == "uploaded_D"
+    assert not hasattr(args, "n_active")
     assert args.kBT_meV == 0.2
     assert args.eps_perp == 3.0
     assert args.occupation_mode == "equilibrium_common_mu"
@@ -215,30 +218,15 @@ def test_single_point_plot_key_must_exist():
         resolve_plot_key(qdf, "not_a_column")
 
 
-def test_single_point_susceptibility_keeps_legacy_scf_iteration_alias_separate(tmp_path):
+def test_single_point_susceptibility_full_iteration_controls(tmp_path):
     from examples.run_stoner_susceptibility_single import build_parser
-
-    args = build_parser().parse_args(
-        [
-            "--n-cm2",
-            "2e12",
-            "--D-Vnm",
-            "0.5",
-            "--out",
-            str(tmp_path / "chi"),
-            "--scf-source",
-            "full",
-            "--scf-max-iter",
-            "17",
-            "--scf-tol-meV",
-            "2e-3",
-        ]
-    )
-
-    assert args.legacy_scf_max_iter == 17
-    assert args.legacy_scf_tol_meV == 2e-3
-    assert args.projected_max_iter == 100
-    assert args.projected_tol_meV == 1e-4
+    args = build_parser().parse_args([
+        "--n-cm2", "2e12", "--D-Vnm", "0.5", "--out", str(tmp_path/"chi"),
+        "--full-max-iter", "17", "--full-tol-meV", "2e-3",
+    ])
+    assert args.full_max_iter == 17
+    assert args.full_tol_meV == 2e-3
+    assert not hasattr(args, "projected_max_iter")
 
 
 def test_nd_mapping_susceptibility_can_build_direct_nd_grid(tmp_path):
@@ -433,3 +421,27 @@ def test_plot_finite_q_susceptibility_generates_figures(tmp_path):
     assert (run_dir / "figures" / "nd_map_log10_finite_q_ratio_su4_diag_clipped.png").exists()
     assert (run_dir / "figures" / "nd_map_robust_finite_q_su4_diag.png").exists()
     assert (run_dir / "plot_summary.json").exists()
+
+
+def test_single_point_failure_invalidates_previous_outputs(monkeypatch, tmp_path):
+    import examples.run_stoner_susceptibility_single as script
+    previous = ("susceptibility_qmap.csv", "susceptibility_qmap.npz", "susceptibility_qmap.png",
+                "susceptibility_summary.json", "jdos_qmap.png", "full_band_stoner_cache.npz",
+                "fermi_contours_after_stoner_with_chi_Qstar.png")
+    for name in previous:
+        (tmp_path/name).write_bytes(b"old accepted point")
+    (tmp_path/"scf").mkdir()
+    (tmp_path/"scf"/"dos.npz").write_bytes(b"old accepted point")
+    (tmp_path/"user_notes.txt").write_text("preserve this")
+    def reject(**kwargs):
+        raise RuntimeError("SCF did not converge to an acceptable state")
+    monkeypatch.setattr(script, "solve_full_scf_stoner_state", reject)
+    monkeypatch.setattr(sys, "argv", ["run_stoner_susceptibility_single.py", "--n-cm2", "0",
+                                      "--D-Vnm", "0.2", "--out", str(tmp_path)])
+    assert script.main() == 1
+    assert all(not (tmp_path/name).exists() for name in previous)
+    assert not (tmp_path/"scf"/"dos.npz").exists()
+    error = json.loads((tmp_path/"error.json").read_text())
+    assert error["D_Vnm"] == 0.2
+    assert "SCF did not converge" in error["error"]
+    assert (tmp_path/"user_notes.txt").read_text() == "preserve this"

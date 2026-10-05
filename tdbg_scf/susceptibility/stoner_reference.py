@@ -4,7 +4,7 @@ from dataclasses import dataclass
 
 import numpy as np
 
-from tdbg_scf.stoner.full_band import stoner_mu_by_flavor
+from tdbg_scf.stoner.full_band import stoner_mu_by_flavor, stoner_mean_field_fermi_level
 from tdbg_scf.stoner.params import StonerParams
 
 
@@ -124,51 +124,18 @@ def equilibrium_mu_for_shifted_self_energy_meV(ref: StonerReference) -> float:
     return float(ref.mu_eq_meV) - common_shift
 
 
-def _nu_of_mu_zero_temperature(table, mu_meV: float) -> float:
-    mu = float(mu_meV)
-    lo_mu = table.mu_of_nu(float(table.nu_min))
-    hi_mu = table.mu_of_nu(float(table.nu_max))
-    if mu <= lo_mu:
-        return float(table.nu_min)
-    if mu >= hi_mu:
-        return float(table.nu_max)
-    return float(np.interp(mu, table.energy_grid_meV, table.nu_grid))
 
 
-def _solve_common_mu_for_tables(tables, sigma_full: np.ndarray, nu_total: float) -> tuple[float, np.ndarray]:
-    sigma = np.asarray(sigma_full, dtype=float)
+def _filling_interval_zero_temperature(table,mu_meV):
+    capacity = np.diff(table.nu_grid)
+    energies = np.diff(table.kinetic_grid_meV)/capacity
+    # Exact zero-temperature inverse is set-valued at a partially occupied
+    # level. A smooth interpolation in energy cannot reconstruct that state.
+    lo = float(table.nu_grid[0]+np.sum(capacity[energies < mu_meV-1e-4]))
+    hi = float(table.nu_grid[0]+np.sum(capacity[energies <= mu_meV+1e-4]))
+    return max(float(table.nu_min),lo),min(float(table.nu_max),hi)
 
-    def fillings(mu_eq: float) -> np.ndarray:
-        return np.asarray([_nu_of_mu_zero_temperature(table, float(mu_eq) - sigma[i]) for i, table in enumerate(tables)], dtype=float)
 
-    lo = min(table.mu_of_nu(table.nu_min) + sigma[i] for i, table in enumerate(tables)) - 1.0
-    hi = max(table.mu_of_nu(table.nu_max) + sigma[i] for i, table in enumerate(tables)) + 1.0
-    target = float(nu_total)
-    f_lo = float(np.sum(fillings(lo)) - target)
-    f_hi = float(np.sum(fillings(hi)) - target)
-    expand = 0
-    while (f_lo > 0.0 or f_hi < 0.0) and expand < 64:
-        width = hi - lo
-        lo -= width
-        hi += width
-        f_lo = float(np.sum(fillings(lo)) - target)
-        f_hi = float(np.sum(fillings(hi)) - target)
-        expand += 1
-    if f_lo > 0.0 or f_hi < 0.0:
-        raise RuntimeError("common-mu reconstruction bracket failed")
-
-    for _ in range(160):
-        mid = 0.5 * (lo + hi)
-        f_mid = float(np.sum(fillings(mid)) - target)
-        if abs(f_mid) < 1e-12:
-            lo = hi = mid
-            break
-        if f_mid < 0.0:
-            lo = mid
-        else:
-            hi = mid
-    mu_eq = 0.5 * (lo + hi)
-    return float(mu_eq), fillings(mu_eq)
 
 
 def make_stoner_reference(
@@ -185,16 +152,26 @@ def make_stoner_reference(
     """Convert an existing StonerResult into a reference state for chi(Q)."""
 
     nu_f = np.asarray(result.nu_f, dtype=float)
-    mu_f = stoner_mu_by_flavor(result, tables)
+    level = stoner_mean_field_fermi_level(result,tables,params,A_M_A2)
+    mu_f = np.asarray(level["mu_f_meV"]) if level["valid"] else stoner_mu_by_flavor(result,tables)
     sigma_full = stoner_self_energy_shifts_meV(nu_f, params, A_M_A2, remove_common=False)
     sigma_shifted = sigma_full - float(np.mean(sigma_full)) if remove_common_shift else sigma_full.copy()
     mu_eff = mu_f + sigma_full
-    mu_eq, nu_recon = _solve_common_mu_for_tables(tables, sigma_full, float(result.nu_total))
+    mu_eq = float(level["mu_common_meV"])
+    if level["valid"]:
+        # Retain the supplied partial occupations inside the admissible
+        # interval; a common mu alone cannot choose a degenerate fraction.
+        nu_recon = np.array([np.clip(value,*_filling_interval_zero_temperature(table,mu))
+                             for table,value,mu in zip(tables,nu_f,mu_f)])
+    else:
+        nu_recon = np.full(4,np.nan)
     mismatch = np.asarray(nu_recon, dtype=float) - nu_f
     max_abs_mismatch = float(np.max(np.abs(mismatch)))
     total_mismatch = float(np.sum(nu_recon) - float(result.nu_total))
     mu_eff_spread = float(np.max(mu_eff) - np.min(mu_eff))
     warnings = []
+    if not level["valid"]:
+        warnings.append(level["reason"])
     if mu_eff_spread > float(mu_eff_spread_warn_meV):
         warnings.append(f"mu_eff_spread_meV={mu_eff_spread:.6g}")
     if max_abs_mismatch > float(filling_mismatch_warn):
@@ -202,7 +179,8 @@ def make_stoner_reference(
     if abs(total_mismatch) > float(filling_mismatch_warn):
         warnings.append(f"total_nu_mismatch={total_mismatch:.6g}")
     reference_valid = bool(
-        mu_eff_spread <= float(mu_eff_spread_fail_meV)
+        level["valid"] and bool(result.success)
+        and mu_eff_spread <= float(mu_eff_spread_fail_meV)
         and max_abs_mismatch <= float(filling_mismatch_fail)
         and abs(total_mismatch) <= float(filling_mismatch_fail)
     )

@@ -44,6 +44,12 @@ class FullSCFConfig:
     initial_U: str = "uploaded"  # uploaded, bare, zero
     keep_eigensystem: bool = True
 
+    def __post_init__(self) -> None:
+        if isinstance(self.max_iter, bool) or not isinstance(self.max_iter, (int, np.integer)) or self.max_iter < 1:
+            raise ValueError("max_iter must be a positive integer")
+        if not np.isfinite(self.tol_meV) or self.tol_meV <= 0.:
+            raise ValueError("tol_meV must be finite and positive")
+
 
 class FullSCFSolver:
     def __init__(self, ham: TDBGContinuumHamiltonian, kpts: np.ndarray, weights: np.ndarray):
@@ -70,15 +76,34 @@ class FullSCFSolver:
         n_layer = np.zeros(4, dtype=float)
         evals = None
         evecs = None
+        evaluated_U = None
+
+        def evaluate(U_state):
+            # diagonalize returns every one of the 8(2N+1)^2 continuum bands;
+            # all of them enter the layer density and half-state subtraction.
+            energies, vectors = self.ham.diagonalize(self.kpts, U_state)
+            chemical_potential = find_mu_for_density(
+                energies, self.weights, target_a2,
+                degeneracy=config.degeneracy, kBT_meV=config.kBT_meV)
+            density = full_layer_density(
+                chemical_potential, energies, vectors, self.weights, self.layer_masks,
+                degeneracy=config.degeneracy, kBT_meV=config.kBT_meV,
+                target_density_a2=target_a2)
+            U_response = electro.update_U_from_density(density, n_bottom_gate_a2)
+            defect = float(np.max(np.abs(U_response-U_state)))
+            return energies, vectors, chemical_potential, density, U_response, defect
+
+        def acceptable(U_state, chemical_potential, density, defect):
+            charge_error = abs(float(np.sum(density)-target_a2))*1e16
+            charge_tolerance = max(1e4, abs(config.target_density_cm2)*1e-8)
+            return bool(np.isfinite(U_state).all() and np.isfinite(chemical_potential)
+                        and np.isfinite(density).all() and np.isfinite(defect)
+                        and 0. <= defect < config.tol_meV
+                        and charge_error < charge_tolerance)
 
         for it in range(config.max_iter):
-            evals, evecs = self.ham.diagonalize(self.kpts, U)
-            mu = find_mu_for_density(evals, self.weights, target_a2,
-                                     degeneracy=config.degeneracy, kBT_meV=config.kBT_meV)
-            n_layer = full_layer_density(mu, evals, evecs, self.weights, self.layer_masks,
-                                         degeneracy=config.degeneracy, kBT_meV=config.kBT_meV)
-            U_new = electro.update_U_from_density(n_layer, n_bottom_gate_a2)
-            residual = float(np.max(np.abs(U_new - U)))
+            evals, evecs, mu, n_layer, U_new, residual = evaluate(U)
+            evaluated_U = U.copy()
             history.append({
                 "iteration": it,
                 "residual_meV": residual,
@@ -92,29 +117,30 @@ class FullSCFSolver:
                 "n3_cm2": float(a2_to_cm2(n_layer[2])),
                 "n4_cm2": float(a2_to_cm2(n_layer[3])),
             })
-            if residual < config.tol_meV:
-                U = U_new
+            if acceptable(U, mu, n_layer, residual):
+                # Return exactly the potential whose eigenstates and density
+                # passed the residual test. One more unmixed response can
+                # increase the residual of a stiff Hartree map.
                 converged = True
+                break
+            if not np.isfinite(U_new).all():
                 break
             U = mixer.update(U, U_new)
 
-        # Recompute final eigenstates if last step changed U.
-        evals_final, evecs_final = self.ham.diagonalize(self.kpts, U)
-        mu_final = find_mu_for_density(evals_final, self.weights, target_a2,
-                                       degeneracy=config.degeneracy, kBT_meV=config.kBT_meV)
-        n_layer_final = full_layer_density(mu_final, evals_final, evecs_final, self.weights, self.layer_masks,
-                                           degeneracy=config.degeneracy, kBT_meV=config.kBT_meV)
-        U_check = electro.update_U_from_density(n_layer_final, n_bottom_gate_a2)
-        residual_final = float(np.max(np.abs(U_check - U)))
+        # A final mixed step needs evaluation; a state already tested at U
+        # reuses its complete eigenpairs instead of diagonalizing again.
+        if not np.array_equal(U, evaluated_U):
+            evals, evecs, mu, n_layer, _, residual = evaluate(U)
+        converged = acceptable(U, mu, n_layer, residual)
 
         return FullSCFResult(
             U_meV=U,
-            mu_meV=float(mu_final),
-            n_layer_a2=n_layer_final,
-            converged=bool(residual_final < config.tol_meV),
-            residual_meV=residual_final,
+            mu_meV=float(mu),
+            n_layer_a2=n_layer,
+            converged=converged,
+            residual_meV=residual,
             iterations=len(history),
             history=history,
-            evals=evals_final if config.keep_eigensystem else None,
-            evecs=evecs_final if config.keep_eigensystem else None,
+            evals=evals if config.keep_eigensystem else None,
+            evecs=evecs if config.keep_eigensystem else None,
         )

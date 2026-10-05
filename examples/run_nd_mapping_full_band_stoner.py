@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Parallel n-D map: projected/full SCF at each point, then full-band Stoner."""
+"""Parallel n-D map: full self-consistent Hartree, then full-band Stoner."""
 from __future__ import annotations
 
 import argparse
@@ -35,10 +35,19 @@ from run_full_band_stoner import (
     add_full_scf_args,
     add_hamiltonian_args,
     add_stoner_args,
+    clear_point_outputs,
+    hamiltonian_metadata,
+    hamiltonian_npz_metadata,
+    params_from_args,
     point_label,
     run_point,
+    scf_valley,
+    TDBGContinuumHamiltonian,
     write_json,
 )
+from tdbg_scf.output_metadata import displacement_metadata
+from tdbg_scf.output_metadata import axis_edges as _axis_edges
+from tdbg_scf.scf_outputs import scf_point_record, scf_scalar_grids
 
 
 def parse_float_list(text: str | None) -> list[float] | None:
@@ -87,10 +96,13 @@ def build_tasks(n_values: list[float], d_values: list[float], detail_n_count: in
 
 def resolve_workers(value: str) -> int:
     if value == "auto":
-        return max(1, (os.cpu_count() or 2) - 2)
+        workers = max(1, (os.cpu_count() or 2) - 2)
+        return min(workers, 61) if sys.platform == "win32" else workers
     workers = int(value)
     if workers < 1:
         raise ValueError("--max-workers must be >= 1 or auto")
+    if sys.platform == "win32" and workers > 61:
+        raise ValueError("Windows ProcessPoolExecutor supports at most 61 workers")
     return workers
 
 
@@ -105,27 +117,18 @@ def run_task(task: dict[str, Any], args: argparse.Namespace, details_dir: str) -
 
 def plot_nd_map(df: pd.DataFrame, n_values: list[float], d_values: list[float], key: str, out: Path, title: str) -> None:
     if key not in df.columns:
+        out.unlink(missing_ok=True)
         return
+    out.parent.mkdir(parents=True, exist_ok=True)
     arr = np.full((len(n_values), len(d_values)), np.nan, dtype=float)
     for _, row in df[df["status"] == "ok"].iterrows():
         arr[int(row["n_index"]), int(row["D_index"])] = float(row[key])
 
     fig, ax = plt.subplots(figsize=(5.6, 4.2))
-    d_min, d_max = min(d_values), max(d_values)
-    n_min, n_max = min(n_values) / 1e12, max(n_values) / 1e12
-    if d_min == d_max:
-        d_min -= 0.5
-        d_max += 0.5
-    if n_min == n_max:
-        n_min -= 0.5
-        n_max += 0.5
-    im = ax.imshow(
-        arr,
-        origin="lower",
-        aspect="auto",
-        extent=[d_min, d_max, n_min, n_max],
-        interpolation="nearest",
-    )
+    n_axis, d_axis = np.asarray(n_values) / 1e12, np.asarray(d_values)
+    i_order, j_order = np.argsort(n_axis), np.argsort(d_axis)
+    im = ax.pcolormesh(_axis_edges(d_axis[j_order], .05), _axis_edges(n_axis[i_order], .1),
+                       arr[np.ix_(i_order, j_order)], shading="flat")
     ax.set_xlabel("D (V/nm)")
     ax.set_ylabel(r"$n$ ($10^{12}$ cm$^{-2}$)")
     ax.set_title(title)
@@ -135,18 +138,57 @@ def plot_nd_map(df: pd.DataFrame, n_values: list[float], d_values: list[float], 
     plt.close(fig)
 
 
-def save_map_outputs(out: Path, rows: list[dict[str, Any]], n_values: list[float], d_values: list[float]) -> None:
+def save_scf_map_outputs(out: Path, rows: list[dict[str, Any]], n_values: list[float], d_values: list[float],
+                         ham: TDBGContinuumHamiltonian, D_sign: float) -> None:
+    scf_dir = out / "scf"
+    scf_dir.mkdir(parents=True, exist_ok=True)
+    records = [scf_point_record({**displacement_metadata(D_sign), **row}, ham) for row in rows]
+    frame = pd.DataFrame(records).sort_values(["n_index", "D_index"], kind="stable")
+    frame.to_csv(scf_dir / "nd_map.csv", index=False)
+    write_json(scf_dir / "nd_map.json", frame.to_dict(orient="records"))
+    np.savez(scf_dir / "nd_map_scalars.npz", **hamiltonian_npz_metadata(ham),
+             **displacement_metadata(D_sign), stage="scf_before_stoner",
+             n_values_cm2=np.asarray(n_values, dtype=float), D_values_Vnm=np.asarray(d_values),
+             **scf_scalar_grids(records, len(n_values), len(d_values)))
+    specs = [
+        ("dos_mu_scf", "SCF full-spectrum DOS at density-matched mu"),
+        ("scf_mu_meV", "SCF chemical potential (meV)"),
+        ("full_mu_meV", "SCF full-spectrum chemical potential (meV)"),
+        ("P_top_bottom_cm2", "SCF top-bottom layer polarization (cm^-2)"),
+        ("P_outer_inner_cm2", "SCF outer-inner layer polarization (cm^-2)"),
+        ("P_dipole_cm2", "SCF layer dipole scalar (cm^-2)"),
+        ("scf_layer_dos_top_bottom", "SCF top-bottom layer DOS"),
+        ("scf_layer_dos_outer_inner", "SCF outer-inner layer DOS"),
+        ("scf_layer_dos_dipole", "SCF layer DOS dipole scalar"),
+        ("scf_residual_meV", "SCF residual (meV)"),
+        ("scf_iterations", "SCF iterations"),
+    ]
+    for layer in range(1, 4 + 1):
+        specs += [(f"U{layer}_meV", f"SCF layer {layer} electron potential (meV)"),
+                  (f"n{layer}_cm2", f"SCF layer {layer} density (cm^-2)"),
+                  (f"scf_layer_dos_L{layer}", f"SCF layer {layer} DOS")]
+    for key, title in specs:
+        plot_nd_map(frame, n_values, d_values, key, scf_dir / "figures" / f"nd_map_{key}.png", title)
+
+
+def save_map_outputs(out: Path, rows: list[dict[str, Any]], n_values: list[float], d_values: list[float],
+                     ham: TDBGContinuumHamiltonian, D_sign: float = -1.0) -> None:
+    n_layers = max((int(row.get("n_layers", 4)) for row in rows), default=4)
     df = pd.DataFrame(rows).sort_values(["n_index", "D_index"], kind="stable")
     df.to_csv(out / "nd_map.csv", index=False)
     write_json(out / "nd_map.json", df.to_dict(orient="records"))
+    save_scf_map_outputs(out, rows, n_values, d_values, ham, D_sign)
     ok = df[df["status"] == "ok"]
-    if not ok.empty:
-        np.savez(
-            out / "nd_map_scalars.npz",
-            n_values_cm2=np.asarray(n_values, dtype=float),
-            D_values_Vnm=np.asarray(d_values, dtype=float),
-            rows=ok.to_records(index=False),
-        )
+    # Replace the previous cache even when every point failed: empty rows then
+    # explicitly describe this run instead of retaining an earlier valid map.
+    np.savez(
+        out / "nd_map_scalars.npz",
+        **hamiltonian_npz_metadata(ham),
+        **displacement_metadata(D_sign),
+        n_values_cm2=np.asarray(n_values, dtype=float),
+        D_values_Vnm=np.asarray(d_values, dtype=float),
+        rows=ok.to_records(index=False),
+    )
 
     fig_dir = out / "figures"
     fig_dir.mkdir(parents=True, exist_ok=True)
@@ -160,7 +202,6 @@ def save_map_outputs(out: Path, rows: list[dict[str, Any]], n_values: list[float
         ("spin_valley_polarization", "Absolute spin-valley polarization"),
         ("spin_valley_polarization_norm", "Absolute normalized spin-valley polarization"),
         ("dos_mu_scf", "Full-band DOS at full-band mu"),
-        ("dos_mu_full_at_projected_mu", "Full-band DOS at projected-SCF mu"),
         ("dos_mu_full_at_full_mu", "Full-band DOS at full-band mu"),
         ("dos_mu_stoner", "Explicit-flavor DOS at Stoner mu_f"),
         ("P_outer_inner_cm2", "Outer-inner layer polarization (cm^-2)"),
@@ -169,10 +210,7 @@ def save_map_outputs(out: Path, rows: list[dict[str, Any]], n_values: list[float
         ("stoner_P_outer_inner_cm2", "Stoner outer-inner layer polarization (cm^-2)"),
         ("stoner_P_top_bottom_cm2", "Stoner top-bottom layer polarization (cm^-2)"),
         ("stoner_P_dipole_cm2", "Stoner layer dipole scalar (cm^-2)"),
-        ("stoner_layer_dos_L1", "Stoner layer DOS L1"),
-        ("stoner_layer_dos_L2", "Stoner layer DOS L2"),
-        ("stoner_layer_dos_L3", "Stoner layer DOS L3"),
-        ("stoner_layer_dos_L4", "Stoner layer DOS L4"),
+        *[(f"stoner_layer_dos_L{layer}", f"Stoner layer DOS L{layer}") for layer in range(1, n_layers + 1)],
         ("stoner_layer_dos_total", "Stoner total layer DOS"),
         ("stoner_layer_dos_outer_inner", "Stoner outer-inner layer DOS"),
         ("stoner_layer_dos_top_bottom", "Stoner top-bottom layer DOS"),
@@ -187,10 +225,7 @@ def save_map_outputs(out: Path, rows: list[dict[str, Any]], n_values: list[float
                 (f"{prefix}_P_top_bottom_cm2", f"{flavor} Stoner top-bottom density polarization (cm^-2)"),
                 (f"{prefix}_P_outer_inner_cm2", f"{flavor} Stoner outer-inner density polarization (cm^-2)"),
                 (f"{prefix}_P_dipole_cm2", f"{flavor} Stoner density dipole scalar (cm^-2)"),
-                (f"{prefix}_layer_dos_L1", f"{flavor} Stoner layer DOS L1"),
-                (f"{prefix}_layer_dos_L2", f"{flavor} Stoner layer DOS L2"),
-                (f"{prefix}_layer_dos_L3", f"{flavor} Stoner layer DOS L3"),
-                (f"{prefix}_layer_dos_L4", f"{flavor} Stoner layer DOS L4"),
+                *[(f"{prefix}_layer_dos_L{layer}", f"{flavor} Stoner layer DOS L{layer}") for layer in range(1, n_layers + 1)],
                 (f"{prefix}_layer_dos_total", f"{flavor} Stoner total layer DOS"),
                 (f"{prefix}_layer_dos_top_bottom", f"{flavor} Stoner top-bottom layer DOS"),
                 (f"{prefix}_layer_dos_outer_inner", f"{flavor} Stoner outer-inner layer DOS"),
@@ -202,7 +237,7 @@ def save_map_outputs(out: Path, rows: list[dict[str, Any]], n_values: list[float
 
 
 def parse_args() -> argparse.Namespace:
-    ap = argparse.ArgumentParser(description="Server n-D mapping: projected/full SCF per point, then full-band Stoner.")
+    ap = argparse.ArgumentParser(description="Server n-D mapping: full self-consistent Hartree per point, then full-band Stoner.")
     add_hamiltonian_args(ap)
     ap.add_argument("--n-values-cm2", type=str, default=None, help="Comma-separated explicit density values.")
     ap.add_argument("--n-min-cm2", type=float, default=-6e12)
@@ -222,7 +257,7 @@ def parse_args() -> argparse.Namespace:
     return ap.parse_args()
 
 
-def main() -> None:
+def main() -> int:
     args = parse_args()
     stamp = datetime.now().strftime("%Y%m%d_%H%M%S")
     out = Path(args.out) if args.out else Path("outputs") / f"nd_mapping_full_band_stoner_{stamp}"
@@ -230,6 +265,7 @@ def main() -> None:
     details_dir = out / "details"
     details_dir.mkdir(parents=True, exist_ok=True)
 
+    ham = TDBGContinuumHamiltonian(params_from_args(args, scf_valley(args)))
     n_values = make_axis_values(args.n_values_cm2, args.n_min_cm2, args.n_max_cm2, args.n_count)
     d_values = make_axis_values(args.D_values_Vnm, args.D_min_Vnm, args.D_max_Vnm, args.D_count)
     tasks = build_tasks(n_values, d_values, args.detail_n_count, args.detail_D_count)
@@ -240,6 +276,8 @@ def main() -> None:
         "command": " ".join(sys.argv),
         "platform": {"platform": platform.platform(), "python": sys.version, "cpu_count": os.cpu_count()},
         "args": vars(args),
+        "hamiltonian": hamiltonian_metadata(ham),
+        "displacement": displacement_metadata(args.D_sign),
         "n_values_cm2": n_values,
         "D_values_Vnm": d_values,
         "max_workers_resolved": workers,
@@ -256,23 +294,48 @@ def main() -> None:
             print(f"[{index}/{len(tasks)}] {task['label']} {row['status']}", flush=True)
     else:
         with ProcessPoolExecutor(max_workers=workers) as pool:
-            futures = [pool.submit(run_task, task, args, str(details_dir)) for task in tasks]
-            for index, future in enumerate(as_completed(futures), start=1):
-                row = future.result()
-                rows.append(row)
-                print(f"[{index}/{len(tasks)}] {row.get('label', '?')} {row['status']}", flush=True)
+            def failed_worker(task, exc):
+                detail_dir = details_dir / task["label"]
+                clear_point_outputs(detail_dir)
+                row = {
+                    **hamiltonian_metadata(ham), **displacement_metadata(args.D_sign),
+                    **task, "status": "failed", "scf_status": "failed", "scf_converged": False,
+                    "stoner_success": False, "error_stage": "worker_transport",
+                    "error": repr(exc), "detail_saved": False,
+                }
+                write_json(detail_dir / "error.json", row)
+                return row
 
-    save_map_outputs(out, rows, n_values, d_values)
+            futures = {}
+            for task in tasks:
+                try:
+                    futures[pool.submit(run_task, task, args, str(details_dir))] = task
+                except Exception as exc:
+                    row = failed_worker(task, exc)
+                    rows.append(row)
+                    print(f"[{len(rows)}/{len(tasks)}] {task['label']} failed", flush=True)
+            for future in as_completed(futures):
+                try:
+                    row = future.result()
+                except Exception as exc:
+                    row = failed_worker(futures[future], exc)
+                rows.append(row)
+                print(f"[{len(rows)}/{len(tasks)}] {row.get('label', '?')} {row['status']}", flush=True)
+
+    save_map_outputs(out, rows, n_values, d_values, ham, D_sign=args.D_sign)
     summary = {
         "total_points": len(tasks),
         "ok_points": sum(1 for row in rows if row.get("status") == "ok"),
         "failed_points": sum(1 for row in rows if row.get("status") != "ok"),
+        "invalid_stoner_dos_points": sum(1 for row in rows if row.get("status") == "ok"
+                                          and not row.get("stoner_dos_valid", True)),
         "runtime_s": float(time.time() - started),
         "out": str(out),
     }
     write_json(out / "run_summary.json", summary)
     print(json.dumps(summary, indent=2))
+    return 1 if summary["failed_points"] or summary["invalid_stoner_dos_points"] else 0
 
 
 if __name__ == "__main__":
-    main()
+    raise SystemExit(main())

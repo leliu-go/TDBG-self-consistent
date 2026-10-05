@@ -1,21 +1,21 @@
 # TDBG self-consistent continuum and Stoner workflows
 
 This repository contains a Python implementation of an ABBA twisted double
-bilayer graphene (TDBG) continuum model, self-consistent layer-Hartree solvers,
-projected eight-band acceleration, and a phenomenological full-band Stoner
+bilayer graphene (TDBG) continuum model, full continuum self-consistent layer-Hartree and a phenomenological full-band Stoner
 post-processing workflow.
 
 The most reliable parts of the code are:
 
 - the ABBA continuum Hamiltonian and band-structure utilities;
 - full continuum self-consistent layer-Hartree calculation;
-- projected eight-band self-consistent Hartree calculation;
 - full-band four-flavor Stoner calculation after self-consistency;
 - n-D mapping and single-point output generation for the Stoner workflow.
 
 The finite-Q susceptibility code is currently experimental. It is kept in the
 repository for development, but it should not be used as a final physical result
 until the finite-Q formulation and diagnostics have been rechecked.
+
+Windows deployment and full Hartree commands: [server_full_hartree_stoner_cli.md](server_full_hartree_stoner_cli.md). Numerical audit: [docs/full_hartree_numerical_audit.md](docs/full_hartree_numerical_audit.md).
 
 ## Code layout
 
@@ -25,12 +25,11 @@ tdbg_scf/lattice.py                moire reciprocal lattice and k grids
 tdbg_scf/electrostatics.py         displacement-field convention and Gauss-law update
 tdbg_scf/density.py                Fermi functions, density, layer weights, DOS
 tdbg_scf/solver_full.py            full continuum self-consistent Hartree solver
-tdbg_scf/solver_projected.py       projected eight-band self-consistent Hartree solver
 tdbg_scf/stoner/                  phenomenological full-band Stoner model
 tdbg_scf/susceptibility/          experimental finite-Q susceptibility code
 examples/                         runnable scripts for SCF, Stoner, and mappings
-docs/TDBG_model_and_workflow_note.md
-                                  detailed model and workflow note
+docs/full_hartree_numerical_audit.md
+                                  numerical conventions, checks, and changes
 ```
 
 ## Physical model
@@ -190,46 +189,19 @@ python examples\run_full_scf.py `
   --out outputs\full_quick
 ```
 
-### Projected eight-band SCF
+### Full-only numerical workflow
 
-`tdbg_scf/solver_projected.py` accelerates the calculation by projecting the
-continuum model into an active miniband subspace. The default workflow is:
+All SCF and Stoner entry points now use full continuum diagonalization at every
+Hartree iteration. The projected Hartree solver, projected-HF scaffolding and
+projection CLI options have been removed. A full calculation includes all
+`8(2N+1)^2` eigenstates of the chosen plane-wave cutoff, including their layer
+weights and neutrality reference.
 
-1. Diagonalize a reference full continuum Hamiltonian at `U_ref`.
-2. Select `n_active` bands near the reference chemical potential.
-3. Track the active subspace using wavefunction overlap on the k mesh.
-4. Project layer operators `P_l` into the active space.
-5. Use
-
-$$
-H_{\mathrm{eff}}(k;U)
-=\mathrm{diag}\,E_{0,\mathrm{active}}(k)
-+\sum_l\left(U_l-U_{\mathrm{ref},l}\right)P_{l,\mathrm{active}}(k).
-$$
-
-6. Include the stored remote-band density correction.
-7. Run the same layer-Hartree self-consistency in the active space.
-
-Typical quick test:
-
-```powershell
-python examples\run_projected_8band_scf.py `
-  --theta-deg 1.35 `
-  --cutoff 1 `
-  --D-Vnm 0.2 `
-  --n-cm2 0 `
-  --grid-n1 7 `
-  --grid-n2 7 `
-  --n-active 8 `
-  --selection overlap `
-  --max-iter 40 `
-  --tol-meV 1e-3 `
-  --out outputs\proj8_quick
-```
-
-For production-like scans, the workflow commonly uses projected eight-band SCF
-to obtain `U_scf`, then inserts that `U_scf` back into the full continuum model
-for full-band Stoner analysis.
+The returned potential must pass the full fixed-point residual, density and
+finite-value checks before DOS, bands or Stoner analysis. A failed map point is
+recorded as failed. Its diagnostic residual and charge error are retained;
+physical outputs are skipped. Full convergence does not by itself establish
+convergence in plane-wave cutoff or k-mesh resolution.
 
 ## Full-band Stoner model
 
@@ -249,7 +221,7 @@ The four flavors are ordered as
 For each `(n,D)` point:
 
 ```text
-1. Run SCF, usually projected eight-band SCF, to obtain U_scf.
+1. Run full continuum self-consistent Hartree to obtain U_scf.
 2. Diagonalize the full continuum Hamiltonian at U_scf in K and K'.
 3. Build neutrality-referenced full-band filling tables for K and K'.
 4. Restrict fillings to the doped carrier sector.
@@ -312,10 +284,8 @@ python examples\run_full_band_stoner.py `
   --cutoff 2 `
   --grid-n1 24 `
   --grid-n2 24 `
-  --scf-source projected_8band `
-  --projected-reference-mode uploaded_D `
-  --n-active 8 `
-  --selection overlap `
+  --full-max-iter 60 `
+  --full-tol-meV 1e-4 `
   --u0-meV-A2 7.9e4 `
   --JH-meV-A2 2.4e4 `
   --out outputs\full_band_stoner_single
@@ -335,10 +305,8 @@ python examples\run_nd_mapping_full_band_stoner.py `
   --D-count 121 `
   --grid-n1 24 `
   --grid-n2 24 `
-  --scf-source projected_8band `
-  --projected-reference-mode uploaded_D `
-  --n-active 8 `
-  --selection overlap `
+  --full-max-iter 60 `
+  --full-tol-meV 1e-4 `
   --u0-meV-A2 7.9e4 `
   --JH-meV-A2 2.4e4 `
   --max-workers 40 `
@@ -403,18 +371,16 @@ layer-polarization figures
 fermi-contour figures
 ```
 
-For projected SCF, `projected_8band_model.npz` stores:
+The `scf/` subdirectory contains the accepted Hartree stage before Stoner:
+`nd_map.csv`, `nd_map.json`, numeric map arrays, layer DOS, layer density,
+potentials, band and DOS figures for detail points. This stage is retained if
+the subsequent Stoner optimizer fails. It reuses the same calculation.
 
-```text
-miniband_energies0_meV
-layer_mats
-U_ref_meV
-U_scf_meV
-remote_density_per_k_layer
-selected_indices
-kpts
-weights
-```
+Stoner DOS and band figures require a physically consistent common mean-field
+Fermi level. A constrained carrier-sector optimum can be valid while no such
+Fermi level exists; these spectral fields are then NaN, not zero, with the
+reason recorded. `stoner_dos_valid` distinguishes this case. See the numerical
+audit for the finite-grid occupation and kinetic-energy conventions.
 
 For full-band Stoner detail points, `full_band_stoner_cache.npz` stores full
 bands, eigenvectors, `U_scf`, Stoner flavor fillings, flavor chemical

@@ -26,6 +26,10 @@ def load_correlated_config(path: str | Path, nu_override: float | None = None, D
         raise ValueError("config path must end in .json, .yaml, or .yml")
 
     cfg = copy.deepcopy(data)
+    if cfg.get("method", "stoner") != "stoner":
+        raise ValueError("method must be 'stoner'; correlated scans use full-band layer Hartree")
+    if any(str(key).startswith("projected") for key in cfg):
+        raise ValueError("projection configuration is no longer supported; use full_scf")
     shared = cfg.setdefault("shared", {})
     if nu_override is not None:
         shared["nu_grid"] = [float(nu_override)]

@@ -13,8 +13,8 @@ def test_correlated_cli_help_lists_methods():
 
     assert result.returncode == 0
     assert "stoner" in result.stdout
-    assert "projected-hf" in result.stdout
-    assert "both" in result.stdout
+    assert "projected-hf" not in result.stdout
+    assert "both" not in result.stdout
 
 
 def test_correlated_config_json_load_and_override(tmp_path):

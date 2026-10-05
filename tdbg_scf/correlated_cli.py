@@ -7,8 +7,8 @@ from .correlated_config import load_correlated_config
 
 
 def build_parser() -> argparse.ArgumentParser:
-    parser = argparse.ArgumentParser(description="Run Stoner, projected-hf, or both correlated solvers.")
-    parser.add_argument("--method", choices=("stoner", "projected-hf", "both"), default=None)
+    parser = argparse.ArgumentParser(description="Run full-band layer Hartree followed by the four-flavor Stoner solver.")
+    parser.add_argument("--method", choices=("stoner",), default=None)
     parser.add_argument("--config", required=False)
     parser.add_argument("--nu", type=float, default=None)
     parser.add_argument("--D", type=float, default=None)
@@ -29,16 +29,6 @@ def main(argv: list[str] | None = None) -> int:
         from .stoner.scan import run_stoner_scan
 
         run_stoner_scan(cfg)
-    elif method == "projected-hf":
-        from .projected_hf.scan import run_projected_hf_scan
-
-        run_projected_hf_scan(cfg)
-    elif method == "both":
-        from .projected_hf.scan import run_projected_hf_scan
-        from .stoner.scan import run_stoner_scan
-
-        run_stoner_scan(cfg)
-        run_projected_hf_scan(cfg)
     else:
         parser.error(f"unknown method: {method}")
     return 0

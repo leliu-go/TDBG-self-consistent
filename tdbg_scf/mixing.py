@@ -46,8 +46,10 @@ class AndersonMixer(Mixer):
         dX = (X[1:] - X[:-1]).T
         try:
             gamma, *_ = np.linalg.lstsq(dF, r, rcond=None)
-            step = r - (dX + self.beta * dF) @ gamma
-            y = x + self.beta * step
+            # Damped Type-II: the extrapolated point is x - dX @ gamma,
+            # and beta damps its residual, r - dF @ gamma. Applying beta
+            # to dX a second time breaks the multisecant update.
+            y = x + self.beta * r - (dX + self.beta * dF) @ gamma
         except np.linalg.LinAlgError:
             y = x + self.fallback_alpha * r
         return y - np.mean(y)

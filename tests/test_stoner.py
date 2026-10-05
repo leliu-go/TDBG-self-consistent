@@ -14,7 +14,8 @@ def test_flavor_band_table_interpolates_capacity_and_kinetic_energy():
 
     assert table.nu_min == 0.0
     assert table.nu_max == 1.0
-    assert table.mu_of_nu(0.5) == 1.0
+    # At this filled-state node any mu in [1, 2] is allowed; use the midpoint.
+    assert table.mu_of_nu(0.5) == 1.5
     assert table.kinetic_of_nu(1.0) == 1.5
 
 

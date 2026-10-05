@@ -3,9 +3,11 @@ from __future__ import annotations
 
 import numpy as np
 
-from ..density import dos_at_mu_gaussian, layer_weights_from_evecs
+from ..density import dos_at_mu_gaussian, layer_weights_from_evecs, validate_gaussian_sigma
+from ..density import find_mu_for_density, full_layer_density
 from ..filling import density_cm2_to_filling
-from .dos import FlavorBandTable
+from .dos import FlavorBandTable, _sorted_weighted_states, _cumulative_integrals, _stable_cumsum
+from .energy import stoner_stationarity_intervals
 
 
 def build_neutrality_referenced_band_table(
@@ -28,23 +30,22 @@ def build_neutrality_referenced_band_table(
     if weights.shape != (energies.shape[0],):
         raise ValueError("weights must have shape (Nk,)")
 
-    Nk, Nb = energies.shape
-    state_e = energies.reshape(-1) - float(energy_zero_meV)
-    state_w = np.repeat(weights, Nb) * float(A_M_A2)
-    if np.any(state_w < 0.0):
-        raise ValueError("weights must be non-negative")
-
-    order = np.argsort(state_e, kind="mergesort")
-    es = state_e[order]
-    ws = state_w[order]
-    nu_abs = np.concatenate([[0.0], np.cumsum(ws)])
-    kinetic_abs = np.concatenate([[0.0], np.cumsum(ws * es)])
+    es, ws = _sorted_weighted_states(energies_meV, weights, A_M_A2, energy_zero_meV)
+    nu_abs, _ = _cumulative_integrals(es, ws)
     energy_grid = np.concatenate([[es[0]], es])
 
-    ref_abs = 0.5 * float(nu_abs[-1])
-    kinetic_ref = float(np.interp(ref_abs, nu_abs, kinetic_abs))
-    nu_grid = nu_abs - ref_abs
-    kinetic_grid = kinetic_abs - kinetic_ref
+    ref_abs = .5 * nu_abs[-1]
+    ref_index = int(np.searchsorted(nu_abs, ref_abs, side="left"))
+    fraction = (ref_abs-nu_abs[ref_index-1]) / (nu_abs[ref_index]-nu_abs[ref_index-1])
+    nu_grid = np.asarray(nu_abs - ref_abs, dtype=float)
+    # Integrate outwards from neutrality instead of subtracting two large
+    # filled-sea energies. This preserves small slopes near the Fermi bands.
+    increments = ws*es
+    kinetic_grid = np.empty(len(increments)+1, dtype=float)
+    kinetic_grid[:ref_index] = (-fraction*increments[ref_index-1]
+                               -np.r_[0.,_stable_cumsum(increments[:ref_index-1][::-1])][::-1])
+    kinetic_grid[ref_index:] = ((1-fraction)*increments[ref_index-1]
+                               +np.r_[0.,_stable_cumsum(increments[ref_index:])])
 
     return FlavorBandTable(
         nu_grid=nu_grid,
@@ -107,7 +108,36 @@ def density_cm2_to_nu_total(n_cm2: float, A_M_A2: float) -> float:
 
 
 def stoner_mu_by_flavor(result, tables: list[FlavorBandTable]) -> np.ndarray:
+    if getattr(result, "mu_f_meV", None) is not None:
+        return np.asarray(result.mu_f_meV, dtype=float)
     return np.asarray([tables[f].mu_of_nu(float(result.nu_f[f])) for f in range(4)], dtype=float)
+
+
+
+def stoner_mean_field_fermi_level(result, tables, params, A_M_A2,
+                                 mu_tolerance_meV: float = 1e-4) -> dict:
+    """Find one Fermi level for the existing constant-flavor Stoner shifts.
+
+    Sigma_f is the unconstrained derivative of the interaction energy.
+    Intersect K'_f(nu_f)+Sigma_f using the full physical spectral intervals,
+    not the one-sided carrier-sector optimization normal cones. No filling
+    or energy is changed. An empty intersection cannot certify physical DOS.
+    """
+    check = stoner_stationarity_intervals(result.nu_f, tables, params, A_M_A2, mu_tolerance_meV)
+    sigma = np.asarray(check["self_energy_f_meV"])
+    lo,hi = check["mu_interval_lower_meV"],check["mu_interval_upper_meV"]
+    valid,optimization_valid = check["physical_valid"],check["optimization_valid"]
+    if valid:
+        common = .5*(lo+hi) if np.isfinite([lo,hi]).all() else (hi if np.isfinite(hi) else lo)
+        if not np.isfinite(common):
+            common = 0.
+        mu_f = common-sigma
+    else:
+        common, mu_f = float("nan"), np.full(4, np.nan)
+    return {**check, "valid": valid, "mu_common_meV": float(common), "mu_f_meV": mu_f.tolist(),
+            "reason": ("ok" if valid else "optimizer_kkt_mismatch" if not optimization_valid
+                       else "carrier_constraint_incompatible"),
+            "convention": "common_mean_field_fermi_level_with_constant_flavor_shifts"}
 
 
 def explicit_flavor_dos_at_mu(
@@ -147,31 +177,15 @@ def layer_filling_from_nu(
     if w.shape != (energies.shape[0],):
         raise ValueError("weights must have shape (Nk,)")
 
-    W = layer_weights_from_evecs(evecs, layer_masks)
-    if W.shape[:2] != energies.shape:
-        raise ValueError("evecs/layer_masks must produce layer weights matching energies")
-
-    Nk, Nb = energies.shape
-    state_e = energies.reshape(-1)
-    state_dnu = np.repeat(w, Nb) * float(A_M_A2)
-    state_layer_dnu = W.reshape(-1, W.shape[-1]) * state_dnu[:, None]
-    total_capacity = float(np.sum(state_dnu))
-    target_abs = 0.5 * total_capacity + float(nu)
-    if target_abs < -1e-10 or target_abs > total_capacity + 1e-10:
-        raise ValueError("nu outside available full-band capacity")
-    target_abs = float(np.clip(target_abs, 0.0, total_capacity))
-
-    order = np.argsort(state_e, kind="mergesort")
-    dnu_sorted = state_dnu[order]
-    layer_sorted = state_layer_dnu[order]
-    cum_before = np.concatenate([[0.0], np.cumsum(dnu_sorted[:-1])])
-    with np.errstate(divide="ignore", invalid="ignore"):
-        fraction = np.clip((target_abs - cum_before) / dnu_sorted, 0.0, 1.0)
-    fraction = np.where(dnu_sorted > 0.0, fraction, 0.0)
-
-    occupied_layer = np.sum(layer_sorted * fraction[:, None], axis=0)
-    neutral_reference = 0.5 * np.sum(state_layer_dnu, axis=0)
-    return np.real(occupied_layer - neutral_reference)
+    if not np.isfinite(A_M_A2) or A_M_A2 <= 0. or not np.isfinite(nu):
+        raise ValueError("A_M_A2 must be finite and positive; nu must be finite")
+    target = float(nu)/float(A_M_A2)
+    mu = find_mu_for_density(energies, w, target, degeneracy=1, kBT_meV=0.)
+    # Reuse the Hartree occupation rule: tied states receive an equal
+    # fractional occupation, independent of the eigensolver's basis.
+    return float(A_M_A2)*full_layer_density(
+        mu, energies, evecs, w, layer_masks, degeneracy=1, kBT_meV=0.,
+        target_density_a2=target)
 
 
 def stoner_flavor_layer_fillings(
@@ -241,7 +255,7 @@ def layer_dos_at_mu_gaussian(
     W = layer_weights_from_evecs(evecs, layer_masks)
     if W.shape[:2] != evals.shape:
         raise ValueError("evecs/layer_masks must produce layer weights matching evals")
-    sigma = float(sigma_meV)
+    sigma = validate_gaussian_sigma(sigma_meV)
     x = (evals - float(mu_meV)) / sigma
     kernel = np.exp(-0.5 * x * x) / (np.sqrt(2.0 * np.pi) * sigma)
     return np.real(np.einsum("k,kb,kbl->l", weights, kernel, W, optimize=True))
@@ -315,6 +329,10 @@ def stoner_result_to_dict(result, tables: list[FlavorBandTable]) -> dict:
         "nu_total": float(result.nu_total),
         "nu_f": result.nu_f.tolist(),
         "mu_f_meV": mu_f.tolist(),
+        "mean_field_fermi_level": getattr(result, "mean_field_fermi_level", None),
+        "mu_convention": ("common_mean_field_fermi_level_with_constant_flavor_shifts"
+                          if getattr(result, "mu_f_meV", None) is not None else
+                          "independent_flavor_filling_quantiles"),
         "energy_meV_per_cell": float(result.energy_meV_per_cell),
         "success": bool(result.success),
         "seed_name": str(result.seed_name),

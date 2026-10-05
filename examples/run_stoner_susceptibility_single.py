@@ -20,9 +20,12 @@ for _path in (SCRIPT_DIR, REPO_ROOT):
 
 from run_full_band_stoner import (
     FLAVOR_NAMES,
+    clear_point_outputs,
     full_band_dos_summary,
     layer_dos_polarizations,
     save_detail_outputs,
+    save_scf_detail_outputs,
+    write_json,
 )
 
 from tdbg_scf.susceptibility import (
@@ -38,6 +41,7 @@ from tdbg_scf.lattice import MoireGeometry
 from tdbg_scf.stoner.full_band import (
     explicit_flavor_dos_at_mu,
     layer_polarizations,
+    layer_dos_at_mu_gaussian,
     stoner_flavor_layer_dos_at_mu,
     stoner_flavor_layer_fillings,
     stoner_mu_by_flavor,
@@ -45,17 +49,7 @@ from tdbg_scf.stoner.full_band import (
 
 
 def add_scf_reference_args(ap: argparse.ArgumentParser) -> None:
-    ap.add_argument("--scf-source", choices=["projected_8band", "full"], default="projected_8band")
     ap.add_argument("--scf-valley", type=int, choices=[-1, 1], default=1)
-    ap.add_argument("--full-scf-valley", type=int, choices=[-1, 1], default=None)
-    ap.add_argument("--n-active", type=int, default=8)
-    ap.add_argument("--selection", choices=["closest", "contiguous", "overlap"], default="overlap")
-    ap.add_argument("--projector-refreshes", type=int, default=0)
-    ap.add_argument("--projected-reference-mode", choices=["uploaded_D", "bare_D", "zero", "full_scf"], default="uploaded_D")
-    ap.add_argument("--max-iter", "--projected-max-iter", dest="projected_max_iter", type=int, default=100)
-    ap.add_argument("--tol-meV", "--projected-tol-meV", dest="projected_tol_meV", type=float, default=1e-4)
-    ap.add_argument("--scf-max-iter", dest="legacy_scf_max_iter", type=int, default=None)
-    ap.add_argument("--scf-tol-meV", dest="legacy_scf_tol_meV", type=float, default=None)
     ap.add_argument("--kBT-meV", "--scf-kBT-meV", dest="kBT_meV", type=float, default=0.2)
     ap.add_argument("--eps-perp", type=float, default=3.0)
     ap.add_argument("--d-layer-nm", type=float, default=0.335)
@@ -98,6 +92,7 @@ def add_stoner_detail_args(ap: argparse.ArgumentParser) -> None:
 def stoner_detail_row(state, args: argparse.Namespace) -> dict:
     scf = state.scf_result
     stoner = state.stoner_result
+    level = stoner.mean_field_fermi_level
     mu_f = stoner_mu_by_flavor(stoner, state.tables)
     stoner_flavor_nu_layer = stoner_flavor_layer_fillings(
         state.evals_K_meV,
@@ -132,7 +127,6 @@ def stoner_detail_row(state, args: argparse.Namespace) -> dict:
         state.evals_Kp_meV,
         state.weights,
         n_cm2=state.n_cm2,
-        projected_mu_meV=scf.mu_meV,
         sigma_meV=args.dos_sigma_meV,
         kBT_meV=args.kBT_meV,
     )
@@ -177,7 +171,6 @@ def stoner_detail_row(state, args: argparse.Namespace) -> dict:
         "dos_mu_scf": full_dos["dos_mu_full_at_full_mu"],
         "dos_mu_full_scf": full_dos["dos_mu_full_at_full_mu"],
         "dos_mu_full_at_full_mu": full_dos["dos_mu_full_at_full_mu"],
-        "dos_mu_full_at_projected_mu": full_dos["dos_mu_full_at_projected_mu"],
         "dos_mu_stoner": explicit_flavor_dos_at_mu(
             state.evals_K_meV,
             state.evals_Kp_meV,
@@ -204,6 +197,17 @@ def stoner_detail_row(state, args: argparse.Namespace) -> dict:
         "stoner_layer_dos_L4": float(stoner_layer_dos[3]),
     }
     row.update(layer_polarizations(n_layer_cm2))
+    scf_layer_dos = 2 * (
+        layer_dos_at_mu_gaussian(state.evals_K_meV, state.evecs_K, state.weights, state.layer_masks,
+                                 full_dos["full_mu_meV"], args.dos_sigma_meV)
+        + layer_dos_at_mu_gaussian(state.evals_Kp_meV, state.evecs_Kp, state.weights, state.layer_masks,
+                                   full_dos["full_mu_meV"], args.dos_sigma_meV))
+    row.update({"scf_status": "ok", "stoner_dos_valid": bool(level["valid"]),
+                "stoner_mu_common_meV": level["mu_common_meV"],
+                "stoner_mu_convention": level["convention"],
+                **{f"scf_layer_dos_L{i+1}": float(value) for i, value in enumerate(scf_layer_dos)},
+                "scf_layer_dos_total": float(np.sum(scf_layer_dos)),
+                **{f"scf_{key}": value for key, value in layer_dos_polarizations(scf_layer_dos).items()}})
     row.update({f"stoner_{key}": value for key, value in layer_polarizations(stoner_n_layer_cm2).items()})
     row.update(
         {
@@ -390,7 +394,7 @@ def plot_shifted_fermi_contour_panels(
 
 
 def save_qstar_contour_overlays(out: Path, summary: dict, args: argparse.Namespace) -> None:
-    before_path = out / "full_band_contours_before_stoner.npz"
+    before_path = out / "scf" / "full_band_contours_before_stoner.npz"
     after_path = out / "full_band_contours_stoner_flavors.npz"
     if not before_path.exists() or not after_path.exists():
         return
@@ -447,54 +451,57 @@ def save_qstar_contour_overlays(out: Path, summary: dict, args: argparse.Namespa
             )
 
 
-def main() -> None:
+def main() -> int:
     args = build_parser().parse_args()
     args.out.mkdir(parents=True, exist_ok=True)
+    clear_point_outputs(args.out)
+    for name in ("susceptibility_qmap.csv", "susceptibility_qmap.npz", "susceptibility_qmap.png",
+                 "susceptibility_summary.json", "jdos_qmap.png",
+                 "fermi_contours_before_stoner_with_chi_Qstar.png",
+                 "fermi_contours_after_stoner_with_chi_Qstar.png",
+                 "fermi_contours_after_stoner_with_jdos_Qstar.png"):
+        (args.out / name).unlink(missing_ok=True)
     n_cm2 = resolve_n_cm2_from_args(args)
 
-    state = solve_full_scf_stoner_state(
-        n_cm2=n_cm2,
-        D_Vnm=args.D_Vnm,
-        theta_deg=args.theta_deg,
-        cutoff=args.cutoff,
-        grid_n1=args.grid_n1,
-        grid_n2=args.grid_n2,
-        omega_meV=args.omega,
-        wAA=args.wAA,
-        wAB=args.wAB,
-        sublattice_Z_meV=args.Z,
-        a_cc_A=args.a_cc_A,
-        gamma0_meV=args.gamma0_meV,
-        gamma1_meV=args.gamma1_meV,
-        gamma3_meV=args.gamma3_meV,
-        gamma4_meV=args.gamma4_meV,
-        scf_source=args.scf_source,
-        scf_valley=args.scf_valley,
-        full_scf_valley=args.full_scf_valley,
-        n_active=args.n_active,
-        selection=args.selection,
-        projector_refreshes=args.projector_refreshes,
-        projected_reference_mode=args.projected_reference_mode,
-        kBT_meV=args.kBT_meV,
-        projected_max_iter=args.projected_max_iter,
-        projected_tol_meV=args.projected_tol_meV,
-        scf_max_iter=args.legacy_scf_max_iter,
-        scf_tol_meV=args.legacy_scf_tol_meV,
-        full_max_iter=args.full_max_iter,
-        full_tol_meV=args.full_tol_meV,
-        eps_perp=args.eps_perp,
-        d_layer_nm=args.d_layer_nm,
-        D_sign=args.D_sign,
-        mixer=args.mixer,
-        alpha=args.alpha,
-        anderson_beta=args.anderson_beta,
-        anderson_memory=args.anderson_memory,
-        initial_U=args.initial_U,
-        stoner_u0_meV_A2=args.stoner_u0_meV_A2,
-        stoner_JH_meV_A2=args.stoner_JH_meV_A2,
-        stoner_n_random_seeds=args.stoner_n_random_seeds,
-        stoner_seed=args.stoner_seed,
-    )
+    try:
+        state = solve_full_scf_stoner_state(
+            n_cm2=n_cm2,
+            D_Vnm=args.D_Vnm,
+            theta_deg=args.theta_deg,
+            cutoff=args.cutoff,
+            grid_n1=args.grid_n1,
+            grid_n2=args.grid_n2,
+            omega_meV=args.omega,
+            wAA=args.wAA,
+            wAB=args.wAB,
+            sublattice_Z_meV=args.Z,
+            a_cc_A=args.a_cc_A,
+            gamma0_meV=args.gamma0_meV,
+            gamma1_meV=args.gamma1_meV,
+            gamma3_meV=args.gamma3_meV,
+            gamma4_meV=args.gamma4_meV,
+            scf_valley=args.scf_valley,
+            kBT_meV=args.kBT_meV,
+            full_max_iter=args.full_max_iter,
+            full_tol_meV=args.full_tol_meV,
+            eps_perp=args.eps_perp,
+            d_layer_nm=args.d_layer_nm,
+            D_sign=args.D_sign,
+            mixer=args.mixer,
+            alpha=args.alpha,
+            anderson_beta=args.anderson_beta,
+            anderson_memory=args.anderson_memory,
+            initial_U=args.initial_U,
+            stoner_u0_meV_A2=args.stoner_u0_meV_A2,
+            stoner_JH_meV_A2=args.stoner_JH_meV_A2,
+            stoner_n_random_seeds=args.stoner_n_random_seeds,
+            stoner_seed=args.stoner_seed,
+        )
+    except Exception as exc:
+        write_json(args.out / "error.json", {"stage": "full_hartree_stoner",
+                   "n_cm2": n_cm2, "D_Vnm": args.D_Vnm, "error": str(exc)})
+        print(str(exc), file=sys.stderr)
+        return 1
     chi_params = SusceptibilityParams(
         kBT_meV=args.chi_kBT_meV,
         energy_window_meV=args.energy_window_meV,
@@ -537,6 +544,9 @@ def main() -> None:
 
     if not args.no_stoner_detail_outputs:
         row = stoner_detail_row(state, args)
+        detail_data = save_scf_detail_outputs(
+            args.out / "scf", row, args, state.ham_K, state.ham_Kp, state.kpts,
+            state.weights, state.scf_result, state.evals_K_meV, state.evals_Kp_meV)
         save_detail_outputs(
             args.out,
             row,
@@ -552,12 +562,14 @@ def main() -> None:
             state.evecs_Kp,
             state.stoner_result,
             state.tables,
+            detail_data,
         )
         save_qstar_contour_overlays(args.out, summary, args)
 
     print("Saved:", args.out)
     print(summary)
+    return 0
 
 
 if __name__ == "__main__":
-    main()
+    raise SystemExit(main())

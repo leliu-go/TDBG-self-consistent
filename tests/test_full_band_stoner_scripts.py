@@ -31,13 +31,13 @@ def test_full_band_dos_summary_recomputes_full_mu_from_full_bands():
         evals_Kp,
         weights,
         n_cm2=0.0,
-        projected_mu_meV=10.0,
         sigma_meV=1.0,
         kBT_meV=0.2,
     )
 
     assert summary["full_mu_meV"] == pytest.approx(0.0, abs=1e-8)
-    assert summary["dos_mu_full_at_full_mu"] > summary["dos_mu_full_at_projected_mu"]
+    assert summary["dos_mu_full_at_full_mu"] > 0
+    assert not any("projected" in key for key in summary)
 
 
 def test_full_band_stoner_analysis_args_include_contour_controls():
@@ -63,8 +63,8 @@ def test_single_point_full_band_stoner_help():
     )
 
     assert result.returncode == 0
-    assert "--scf-source" in result.stdout
-    assert "--n-active" in result.stdout
+    assert "--full-max-iter" in result.stdout
+    assert "--n-active" not in result.stdout
     assert "--u0-meV-A2" in result.stdout
     assert "--D-Vnm" in result.stdout
     assert "--contour-n1" in result.stdout
@@ -79,7 +79,7 @@ def test_nd_mapping_full_band_stoner_help():
     )
 
     assert result.returncode == 0
-    assert "--scf-source" in result.stdout
+    assert "--full-tol-meV" in result.stdout
     assert "--n-count" in result.stdout
     assert "--max-workers" in result.stdout
     assert "--contour-n1" in result.stdout

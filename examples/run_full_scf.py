@@ -5,14 +5,22 @@ from __future__ import annotations
 import argparse
 import json
 from pathlib import Path
+import sys
+import matplotlib
+matplotlib.use("Agg")
 import numpy as np
 import pandas as pd
 
+REPO_ROOT = Path(__file__).resolve().parents[1]
+if str(REPO_ROOT) not in sys.path:
+    sys.path.insert(0, str(REPO_ROOT))
+
 from tdbg_scf import TDBGParameters, TDBGContinuumHamiltonian, make_uniform_mbz_grid, FullSCFConfig, FullSCFSolver
+from tdbg_scf.scf_checks import require_converged_scf, scf_convergence_diagnostics
 from tdbg_scf.plotting import compute_full_bands_along_path, plot_bands, plot_layer_profile, save_dos_plot
 
 
-def main() -> None:
+def main() -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("--theta-deg", type=float, default=1.35)
     ap.add_argument("--cutoff", type=int, default=1, help="Plane-wave square cutoff. Use 1 for quick tests, 2-4 for convergence.")
@@ -39,6 +47,10 @@ def main() -> None:
 
     out = Path(args.out)
     out.mkdir(parents=True, exist_ok=True)
+    # A rejected rerun must not expose accepted spectra from an earlier run.
+    for name in ("history.csv", "layers.csv", "summary.json", "error.json",
+                 "full_scf_result.npz", "full_scf_bands.png", "layer_profile.png", "dos.png"):
+        (out / name).unlink(missing_ok=True)
 
     params = TDBGParameters(
         theta_deg=args.theta_deg, cutoff=args.cutoff, valley=args.valley,
@@ -80,8 +92,15 @@ def main() -> None:
         "converged": result.converged,
         "residual_meV": result.residual_meV,
         "iterations": result.iterations,
+        **scf_convergence_diagnostics(result, args.n_cm2, args.tol_meV),
     }
     (out / "summary.json").write_text(json.dumps(summary, indent=2), encoding="utf-8")
+    try:
+        require_converged_scf(result, args.n_cm2, args.tol_meV)
+    except RuntimeError as exc:
+        (out / "error.json").write_text(json.dumps({"stage":"full_hartree", "error":str(exc)}, indent=2), encoding="utf-8")
+        print(json.dumps(summary, indent=2))
+        return 1
     np.savez(out / "full_scf_result.npz", U_meV=result.U_meV, mu_meV=result.mu_meV,
              n_layer_a2=result.n_layer_a2, evals=result.evals, weights=weights, kpts=kpts)
 
@@ -92,7 +111,8 @@ def main() -> None:
     save_dos_plot(result.evals, weights, result.mu_meV, args.degeneracy, out=str(out / "dos.png"))
 
     print(json.dumps(summary, indent=2))
+    return 0
 
 
 if __name__ == "__main__":
-    main()
+    raise SystemExit(main())

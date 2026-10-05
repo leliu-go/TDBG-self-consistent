@@ -33,17 +33,7 @@ from tdbg_scf.susceptibility import (
 
 
 def add_scf_reference_args(ap: argparse.ArgumentParser) -> None:
-    ap.add_argument("--scf-source", choices=["projected_8band", "full"], default="projected_8band")
     ap.add_argument("--scf-valley", type=int, choices=[-1, 1], default=1)
-    ap.add_argument("--full-scf-valley", type=int, choices=[-1, 1], default=None)
-    ap.add_argument("--n-active", type=int, default=8)
-    ap.add_argument("--selection", choices=["closest", "contiguous", "overlap"], default="overlap")
-    ap.add_argument("--projector-refreshes", type=int, default=0)
-    ap.add_argument("--projected-reference-mode", choices=["uploaded_D", "bare_D", "zero", "full_scf"], default="uploaded_D")
-    ap.add_argument("--max-iter", "--projected-max-iter", dest="projected_max_iter", type=int, default=100)
-    ap.add_argument("--tol-meV", "--projected-tol-meV", dest="projected_tol_meV", type=float, default=1e-4)
-    ap.add_argument("--scf-max-iter", dest="legacy_scf_max_iter", type=int, default=None)
-    ap.add_argument("--scf-tol-meV", dest="legacy_scf_tol_meV", type=float, default=None)
     ap.add_argument("--kBT-meV", "--scf-kBT-meV", dest="kBT_meV", type=float, default=0.2)
     ap.add_argument("--eps-perp", type=float, default=3.0)
     ap.add_argument("--d-layer-nm", type=float, default=0.335)
@@ -266,18 +256,8 @@ def run_chi_task(row_data: dict, args: argparse.Namespace) -> dict:
             gamma1_meV=args.gamma1_meV,
             gamma3_meV=args.gamma3_meV,
             gamma4_meV=args.gamma4_meV,
-            scf_source=args.scf_source,
             scf_valley=args.scf_valley,
-            full_scf_valley=args.full_scf_valley,
-            n_active=args.n_active,
-            selection=args.selection,
-            projector_refreshes=args.projector_refreshes,
-            projected_reference_mode=args.projected_reference_mode,
             kBT_meV=args.kBT_meV,
-            projected_max_iter=args.projected_max_iter,
-            projected_tol_meV=args.projected_tol_meV,
-            scf_max_iter=args.legacy_scf_max_iter,
-            scf_tol_meV=args.legacy_scf_tol_meV,
             full_max_iter=args.full_max_iter,
             full_tol_meV=args.full_tol_meV,
             eps_perp=args.eps_perp,

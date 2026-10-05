@@ -1,9 +1,11 @@
+The Hartree prerequisite now uses full continuum self-consistency. Finite-Q remains experimental as described in README; its formulation is outside this audit.
+
 # Server CLI: finite-Q susceptibility n-D mapping
 
 Run from the repository root:
 
 ```powershell
-cd D:\Code\self-consistent-code\tdbg_scf_project\tdbg_scf_project
+cd D:\Code\TDBG-self-consistent
 
 $env:OMP_NUM_THREADS="1"
 $env:OPENBLAS_NUM_THREADS="1"
@@ -32,18 +34,13 @@ python -u examples\run_nd_mapping_stoner_susceptibility.py `
   --D-count 121 `
   --grid-n1 48 `
   --grid-n2 48 `
-  --scf-source projected_8band `
   --scf-valley 1 `
-  --projected-reference-mode uploaded_D `
-  --n-active 8 `
-  --selection overlap `
-  --projector-refreshes 0 `
   --kBT-meV 0.2 `
   --eps-perp 4.0 `
   --d-layer-nm 0.335 `
   --D-sign=-1.0 `
-  --max-iter 100 `
-  --tol-meV 1e-4 `
+  --full-max-iter 100 `
+  --full-tol-meV 1e-4 `
   --mixer anderson `
   --alpha 0.06 `
   --anderson-beta 0.5 `
@@ -58,7 +55,7 @@ python -u examples\run_nd_mapping_stoner_susceptibility.py `
   --main-vertex-model su4_diag `
   --also-run-hund-factor2 `
   --hund-transverse-factor 2.0 `
-  --occupation-mode flavor_mu `
+  --occupation-mode equilibrium_common_mu `
   --spin-flip-mode both_pm `
   --q-mode folded_grid_with_G_shift `
   --q-stride 4 `
@@ -68,7 +65,7 @@ python -u examples\run_nd_mapping_stoner_susceptibility.py `
 Smoke test version:
 
 ```powershell
-cd D:\Code\self-consistent-code\tdbg_scf_project\tdbg_scf_project
+cd D:\Code\TDBG-self-consistent
 
 $env:OMP_NUM_THREADS="1"
 $env:OPENBLAS_NUM_THREADS="1"
@@ -96,18 +93,13 @@ python -u examples\run_nd_mapping_stoner_susceptibility.py `
   --D-count 121 `
   --grid-n1 48 `
   --grid-n2 48 `
-  --scf-source projected_8band `
   --scf-valley 1 `
-  --projected-reference-mode uploaded_D `
-  --n-active 8 `
-  --selection overlap `
-  --projector-refreshes 0 `
   --kBT-meV 0.2 `
   --eps-perp 4.0 `
   --d-layer-nm 0.335 `
   --D-sign=-1.0 `
-  --max-iter 100 `
-  --tol-meV 1e-4 `
+  --full-max-iter 100 `
+  --full-tol-meV 1e-4 `
   --mixer anderson `
   --alpha 0.06 `
   --anderson-beta 0.5 `
@@ -122,7 +114,7 @@ python -u examples\run_nd_mapping_stoner_susceptibility.py `
   --main-vertex-model su4_diag `
   --also-run-hund-factor2 `
   --hund-transverse-factor 2.0 `
-  --occupation-mode flavor_mu `
+  --occupation-mode equilibrium_common_mu `
   --spin-flip-mode both_pm `
   --q-mode folded_grid_with_G_shift `
   --q-stride 1 `
@@ -133,7 +125,7 @@ python -u examples\run_nd_mapping_stoner_susceptibility.py `
 
 Finite-Q controls:
 
-- `--grid-n1 48 --grid-n2 48`: k-point grid for projected SCF, full-continuum diagonalization, Stoner, and the folded finite-Q scan. If omitted, the script default is `9 x 9`.
+- `--grid-n1 48 --grid-n2 48`: k-point grid for full Hartree SCF and full-continuum diagonalization, Stoner, and the folded finite-Q scan. If omitted, the script default is `9 x 9`.
 - `--q-stride 1`: use every commensurate q-grid step.
 - `--max-abs-q-step 4`: restrict to `|dq1| <= 4` and `|dq2| <= 4`; with `q-stride 1`, this gives 81 Q points.
 - `--q-mode folded_grid_with_G_shift`: folded MBZ Q scan with plane-wave reciprocal shift correction.

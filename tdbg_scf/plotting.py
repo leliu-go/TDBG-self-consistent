@@ -15,28 +15,6 @@ def compute_full_bands_along_path(ham: TDBGContinuumHamiltonian, U_meV: np.ndarr
     return dist, evals, ticks, labels
 
 
-def compute_projected_bands_along_path(ham: TDBGContinuumHamiltonian,
-                                       U_ref_meV: np.ndarray,
-                                       U_meV: np.ndarray,
-                                       mu_ref_meV: float,
-                                       n_active: int = 8,
-                                       selection: str = "closest",
-                                       points_per_segment: int = 80) -> tuple[np.ndarray, np.ndarray, list[int], list[str]]:
-    kpts, dist, ticks, labels = ham.geom.high_symmetry_path(points_per_segment=points_per_segment)
-    from .solver_projected import build_projected_model_at_mu, projected_eigensystem
-
-    model = build_projected_model_at_mu(
-        ham,
-        kpts,
-        U_ref_meV=U_ref_meV,
-        mu_ref_meV=mu_ref_meV,
-        n_active=n_active,
-        selection=selection,
-    )
-    evals, _ = projected_eigensystem(model, U_meV)
-    return dist, evals, ticks, labels
-
-
 def plot_bands(dist: np.ndarray, evals: np.ndarray, ticks: list[int], labels: list[str],
                mu_meV: float = 0.0, n_show: int = 12, title: str = "", out: str | None = None) -> None:
     n_bands = evals.shape[1]

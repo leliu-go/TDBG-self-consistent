@@ -1,3 +1,5 @@
+> Historical finite-Q integration specification. Current full-only Hartree commands and numerical conventions are in README.md and docs/full_hartree_numerical_audit.md. The projected-Hartree references and old CLI snippets below are retired.
+
 # TDBG self-consistent + Stoner 后的 finite-Q transverse spin susceptibility 集成方案
 
 这份文档是给 Codex 用的集成说明。目标是在不改变现有 self-consistent continuum model、projected/full SCF、以及现有 `tdbg_scf.stoner` 功能的前提下，新增一套 **Stoner 后参考态的 finite-Q transverse spin susceptibility** 计算。

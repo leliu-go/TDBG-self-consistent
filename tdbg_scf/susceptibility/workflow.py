@@ -10,19 +10,18 @@ import pandas as pd
 from tdbg_scf import (
     FullSCFConfig,
     FullSCFSolver,
-    ProjectedSCFConfig,
-    ProjectedSCFSolver,
     TDBGContinuumHamiltonian,
     TDBGParameters,
-    linear_potential_from_D,
     make_uniform_mbz_grid,
 )
 from tdbg_scf.filling import moire_cell_area_A2_from_weights
+from tdbg_scf.scf_checks import require_converged_scf
 from tdbg_scf.stoner.full_band import (
     build_full_band_flavor_tables,
     density_cm2_to_nu_total,
     restrict_tables_to_carrier_sector,
     stoner_result_to_dict,
+    stoner_mean_field_fermi_level,
 )
 from tdbg_scf.stoner.params import StonerParams
 from tdbg_scf.stoner.solver import solve_stoner_fixed_nu
@@ -125,31 +124,11 @@ def _mixer_kwargs(mixer: str, alpha: float, anderson_beta: float, anderson_memor
     }
 
 
-def _projected_reference_from_legacy(initial_U: str | None, projected_reference_mode: str) -> str:
-    if initial_U is None or projected_reference_mode != "uploaded_D":
-        return projected_reference_mode
-    mapping = {"uploaded": "uploaded_D", "bare": "bare_D", "zero": "zero"}
-    return mapping.get(str(initial_U), projected_reference_mode)
-
-
-def _supplied_projector_U(D_Vnm: float, projected_reference_mode: str, D_sign: float) -> np.ndarray | None:
-    if projected_reference_mode == "full_scf":
-        return None
-    if projected_reference_mode == "zero":
-        return np.zeros(4, dtype=float)
-    strength = "bare" if projected_reference_mode == "bare_D" else "uploaded"
-    U = linear_potential_from_D(float(D_Vnm), strength=strength, D_sign=float(D_sign))
-    U -= np.mean(U)
-    return U
-
-
 def _run_scf_reference(
     *,
-    scf_source: str,
     ham: TDBGContinuumHamiltonian,
     kpts: np.ndarray,
     weights: np.ndarray,
-    grid_shape: tuple[int, int],
     n_cm2: float,
     D_Vnm: float,
     kBT_meV: float,
@@ -162,93 +141,30 @@ def _run_scf_reference(
     anderson_memory: int,
     full_max_iter: int,
     full_tol_meV: float,
-    initial_U: str | None,
-    n_active: int,
-    selection: str,
-    projector_refreshes: int,
-    projected_reference_mode: str,
-    projected_max_iter: int,
-    projected_tol_meV: float,
+    initial_U: str,
 ) -> tuple[object, dict]:
     mix_kwargs = _mixer_kwargs(mixer, alpha, anderson_beta, anderson_memory)
-    if scf_source == "full":
-        cfg = FullSCFConfig(
-            target_density_cm2=float(n_cm2),
-            D_Vnm=float(D_Vnm),
-            degeneracy=4,
-            kBT_meV=float(kBT_meV),
-            max_iter=int(full_max_iter),
-            tol_meV=float(full_tol_meV),
-            eps_perp=float(eps_perp),
-            d_layer_nm=float(d_layer_nm),
-            D_sign=float(D_sign),
-            mixer=str(mixer),
-            mixer_kwargs=mix_kwargs,
-            initial_U=str(initial_U or "uploaded"),
-            keep_eigensystem=False,
-        )
-        result = FullSCFSolver(ham, kpts, weights).solve(cfg)
-        return result, {
-            "scf_source": "full",
-            "scf_reference_mode": "full",
-            "full_max_iter": int(full_max_iter),
-            "full_tol_meV": float(full_tol_meV),
-        }
-
-    if scf_source != "projected_8band":
-        raise ValueError("scf_source must be 'projected_8band' or 'full'")
-
-    projected_reference_mode = _projected_reference_from_legacy(initial_U, projected_reference_mode)
-    supplied_U = _supplied_projector_U(D_Vnm, projected_reference_mode, D_sign)
-    reference_mode = "supplied_U"
-    full_cfg = None
-    if projected_reference_mode == "full_scf":
-        reference_mode = "full_scf"
-        full_cfg = FullSCFConfig(
-            target_density_cm2=float(n_cm2),
-            D_Vnm=float(D_Vnm),
-            degeneracy=4,
-            kBT_meV=float(kBT_meV),
-            max_iter=int(full_max_iter),
-            tol_meV=float(full_tol_meV),
-            eps_perp=float(eps_perp),
-            d_layer_nm=float(d_layer_nm),
-            D_sign=float(D_sign),
-            mixer=str(mixer),
-            mixer_kwargs=mix_kwargs,
-            initial_U=str(initial_U or "uploaded"),
-            keep_eigensystem=False,
-        )
-
-    cfg = ProjectedSCFConfig(
+    cfg = FullSCFConfig(
         target_density_cm2=float(n_cm2),
         D_Vnm=float(D_Vnm),
-        n_active=int(n_active),
         degeneracy=4,
         kBT_meV=float(kBT_meV),
-        max_iter=int(projected_max_iter),
-        tol_meV=float(projected_tol_meV),
+        max_iter=int(full_max_iter),
+        tol_meV=float(full_tol_meV),
         eps_perp=float(eps_perp),
         d_layer_nm=float(d_layer_nm),
         D_sign=float(D_sign),
         mixer=str(mixer),
         mixer_kwargs=mix_kwargs,
-        selection=str(selection),
-        grid_shape=grid_shape,
-        projector_refreshes=int(projector_refreshes),
-        reference_mode=reference_mode,
-        supplied_U_ref_meV=supplied_U,
-        full_scf_config=full_cfg,
+        initial_U=str(initial_U or "uploaded"),
+        keep_eigensystem=True,
     )
-    result = ProjectedSCFSolver(ham, kpts, weights, grid_shape=grid_shape).solve(cfg)
+    result = FullSCFSolver(ham, kpts, weights).solve(cfg)
     return result, {
-        "scf_source": "projected_8band",
-        "scf_reference_mode": projected_reference_mode,
-        "n_active": int(n_active),
-        "selection": str(selection),
-        "projector_refreshes": int(projector_refreshes),
-        "projected_max_iter": int(projected_max_iter),
-        "projected_tol_meV": float(projected_tol_meV),
+        "scf_source": "full",
+        "scf_reference_mode": "full",
+        "full_max_iter": int(full_max_iter),
+        "full_tol_meV": float(full_tol_meV),
     }
 
 
@@ -269,19 +185,9 @@ def solve_full_scf_stoner_state(
     gamma1_meV: float = 361.0,
     gamma3_meV: float = 283.0,
     gamma4_meV: float = 138.0,
-    scf_source: str = "projected_8band",
     scf_valley: int = 1,
-    full_scf_valley: int | None = None,
-    n_active: int = 8,
-    selection: str = "overlap",
-    projector_refreshes: int = 0,
-    projected_reference_mode: str = "uploaded_D",
     kBT_meV: float | None = None,
     scf_kBT_meV: float | None = None,
-    projected_max_iter: int = 100,
-    projected_tol_meV: float = 1e-4,
-    scf_max_iter: int | None = None,
-    scf_tol_meV: float | None = None,
     full_max_iter: int = 60,
     full_tol_meV: float = 1e-4,
     eps_perp: float = 3.0,
@@ -291,14 +197,19 @@ def solve_full_scf_stoner_state(
     alpha: float = 0.06,
     anderson_beta: float = 0.5,
     anderson_memory: int = 6,
-    initial_U: str | None = None,
+    initial_U: str = "uploaded",
     stoner_u0_meV_A2: float = 7.9e4,
     stoner_JH_meV_A2: float = 2.4e4,
     stoner_temperature_K: float = 0.0,
     stoner_n_random_seeds: int = 20,
     stoner_seed: int = 0,
 ) -> SinglePointStonerState:
-    """Run SCF reference, diagonalize full K/Kp bands, and solve Stoner."""
+    """Solve full Hartree, prepare full K/Kp eigenstates, and solve Stoner.
+
+    The finite-Q model remains the existing four-layer ABBA Hamiltonian.
+    ``initial_U`` selects the uploaded, bare, or zero starting potential;
+    convergence is controlled by ``full_max_iter`` and ``full_tol_meV``.
+    """
 
     params_K = _make_params(
         theta_deg=theta_deg,
@@ -331,29 +242,16 @@ def solve_full_scf_stoner_state(
 
     ham_K = TDBGContinuumHamiltonian(params_K)
     ham_Kp = TDBGContinuumHamiltonian(params_Kp)
-    valley_for_scf = int(full_scf_valley if full_scf_valley is not None else scf_valley)
+    valley_for_scf = int(scf_valley)
     ham_scf = ham_K if valley_for_scf == 1 else ham_Kp
     kpts, weights = make_uniform_mbz_grid(ham_scf.geom, int(grid_n1), int(grid_n2))
     A_M_A2 = moire_cell_area_A2_from_weights(weights)
 
     scf_temperature = float(kBT_meV if kBT_meV is not None else (scf_kBT_meV if scf_kBT_meV is not None else 0.2))
-    if scf_max_iter is not None:
-        if scf_source == "full":
-            full_max_iter = int(scf_max_iter)
-        else:
-            projected_max_iter = int(scf_max_iter)
-    if scf_tol_meV is not None:
-        if scf_source == "full":
-            full_tol_meV = float(scf_tol_meV)
-        else:
-            projected_tol_meV = float(scf_tol_meV)
-
     scf, scf_meta = _run_scf_reference(
-        scf_source=str(scf_source),
         ham=ham_scf,
         kpts=kpts,
         weights=weights,
-        grid_shape=(int(grid_n1), int(grid_n2)),
         n_cm2=float(n_cm2),
         D_Vnm=float(D_Vnm),
         kBT_meV=scf_temperature,
@@ -367,13 +265,8 @@ def solve_full_scf_stoner_state(
         full_max_iter=int(full_max_iter),
         full_tol_meV=float(full_tol_meV),
         initial_U=initial_U,
-        n_active=int(n_active),
-        selection=str(selection),
-        projector_refreshes=int(projector_refreshes),
-        projected_reference_mode=str(projected_reference_mode),
-        projected_max_iter=int(projected_max_iter),
-        projected_tol_meV=float(projected_tol_meV),
     )
+    scf_meta.update(require_converged_scf(scf, float(n_cm2), float(full_tol_meV)))
     scf_meta.update(
         {
             "scf_valley": int(valley_for_scf),
@@ -386,8 +279,12 @@ def solve_full_scf_stoner_state(
     )
     U = np.asarray(scf.U_meV, dtype=float)
 
-    evals_K, evecs_K = ham_K.diagonalize(kpts, U)
-    evals_Kp, evecs_Kp = ham_Kp.diagonalize(kpts, U)
+    if valley_for_scf == 1:
+        evals_K, evecs_K = scf.evals, scf.evecs
+        evals_Kp, evecs_Kp = ham_Kp.diagonalize(kpts, U)
+    else:
+        evals_K, evecs_K = ham_K.diagonalize(kpts, U)
+        evals_Kp, evecs_Kp = scf.evals, scf.evecs
     layer_masks = ham_K.layer_projectors_diagonal()
 
     nu_total = density_cm2_to_nu_total(float(n_cm2), A_M_A2)
@@ -403,6 +300,13 @@ def solve_full_scf_stoner_state(
         seed=int(stoner_seed),
     )
     stoner = solve_stoner_fixed_nu(nu_total, tables, stoner_params, A_M_A2)
+    if not stoner.success:
+        raise RuntimeError("Stoner optimizer failed; susceptibility reference rejected")
+    fermi_level = stoner_mean_field_fermi_level(stoner, tables, stoner_params, A_M_A2)
+    stoner.mean_field_fermi_level = fermi_level
+    if not fermi_level["optimization_valid"] or not fermi_level["valid"]:
+        raise RuntimeError(f"Stoner equilibrium Fermi level invalid; susceptibility reference rejected: {fermi_level['reason']}")
+    stoner.mu_f_meV = np.asarray(fermi_level["mu_f_meV"], dtype=float)
     ref = make_stoner_reference(stoner, tables, stoner_params, A_M_A2)
 
     return SinglePointStonerState(

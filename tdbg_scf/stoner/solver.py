@@ -6,7 +6,8 @@ from dataclasses import dataclass
 import numpy as np
 
 from .dos import FlavorBandTable
-from .energy import stoner_energy_meV_per_cell
+from .energy import (stoner_energy_meV_per_cell, stoner_stationarity_intervals,
+                     stoner_local_stability, stoner_feasible_descent)
 from .params import StonerParams
 
 
@@ -18,6 +19,8 @@ class StonerResult:
     success: bool
     seed_name: str
     local_minima: list[dict]
+    mu_f_meV: np.ndarray | None = None
+    mean_field_fermi_level: dict | None = None
 
     def _spin_polarization_signed(self) -> float:
         return float((self.nu_f[0] + self.nu_f[1]) - (self.nu_f[2] + self.nu_f[3]))
@@ -139,6 +142,8 @@ def solve_stoner_fixed_nu(
 ) -> StonerResult:
     if len(tables) != 4:
         raise ValueError("Need exactly four flavor DOS tables")
+    if not np.isfinite(nu_total) or not np.isfinite(A_M_A2) or A_M_A2 <= 0:
+        raise ValueError("nu_total must be finite and A_M_A2 finite and positive")
 
     bounds = [(table.nu_min, table.nu_max) for table in tables]
     total_min = sum(lo for lo, _ in bounds)
@@ -152,6 +157,12 @@ def solve_stoner_fixed_nu(
     def objective(x):
         return stoner_energy_meV_per_cell(np.asarray(x, dtype=float), tables, params, A_M_A2)
 
+    def is_feasible(values):
+        return bool(values.shape == (4,) and np.isfinite(values).all()
+                    and abs(float(np.sum(values)) - nu_total) < 1e-8
+                    and all(lo - 1e-8 <= value <= hi + 1e-8
+                            for value, (lo, hi) in zip(values, bounds)))
+
     minima: list[dict] = []
     for name, x in seeds:
         minima.append(
@@ -159,8 +170,8 @@ def solve_stoner_fixed_nu(
                 "seed_name": name,
                 "nu_f": x,
                 "energy_meV_per_cell": objective(x),
-                "success": True,
-                "message": "seed",
+                "success": False,
+                "message": "unoptimized seed (diagnostic only)",
             }
         )
 
@@ -180,19 +191,78 @@ def solve_stoner_fixed_nu(
                 constraints=constraints,
                 options={"maxiter": int(params.max_iter), "ftol": float(params.tol_energy_meV)},
             )
-            x = _clip_to_bounds_and_total(res.x, bounds, nu_total)
+            raw = np.asarray(res.x, dtype=float)
+            feasible = is_feasible(raw)
+            # Only repair floating-point constraint drift. Projection must not
+            # turn an infeasible optimizer output into an accepted solution.
+            x = _clip_to_bounds_and_total(raw, bounds, nu_total) if feasible else raw
+            energy = objective(x) if feasible else float("inf")
+            stationarity = (stoner_stationarity_intervals(x, tables, params, A_M_A2)
+                            if feasible and np.isfinite(energy) else None)
+            valid = bool(res.success and feasible and np.isfinite(energy)
+                         and stationarity["optimization_valid"])
+            stability = stoner_local_stability(x, tables, params, A_M_A2) if valid else None
+            valid = bool(valid and stability["valid"])
+            optimizer_iterations = max(0, int(getattr(res, "nit", params.max_iter)))
             minima.append(
                 {
                     "seed_name": f"{name}:slsqp",
                     "nu_f": x,
-                    "energy_meV_per_cell": objective(x),
-                    "success": bool(res.success),
-                    "message": str(res.message),
+                    "energy_meV_per_cell": energy,
+                    "success": valid,
+                    "stationarity": stationarity,
+                    "local_stability": stability,
+                    "optimizer_iterations": optimizer_iterations,
+                    "message": str(res.message) if feasible else f"{res.message}; invalid filling/energy",
                 }
             )
+            # Smooth SLSQP may stop beside a kinetic kink or at a saddle.
+            # Refine only feasible optimizer outputs with unused iterations;
+            # each exact feasible segment step consumes one remaining iterate.
+            # Preserve the rejected SLSQP attempt as a separate diagnostic.
+            remaining = max(0, int(params.max_iter)-optimizer_iterations)
+            if valid or not feasible or not np.isfinite(energy) or remaining == 0:
+                continue
+            refined, refinement_iterations = x.copy(), 0
+            refined_energy, refined_stationarity, refined_stability = energy, stationarity, stability
+            refined_valid = False
+            for _ in range(remaining):
+                descent = stoner_feasible_descent(refined, tables, params, A_M_A2)
+                if descent is None:
+                    break
+                next_values = _clip_to_bounds_and_total(descent, bounds, nu_total)
+                next_energy = objective(next_values) if is_feasible(next_values) else float("inf")
+                if not np.isfinite(next_energy) or next_energy >= refined_energy:
+                    break
+                refined = next_values
+                refinement_iterations += 1
+                refined_energy = next_energy
+                refined_stationarity = stoner_stationarity_intervals(refined, tables, params, A_M_A2)
+                refined_stability = (stoner_local_stability(refined, tables, params, A_M_A2)
+                                     if refined_stationarity["optimization_valid"] else None)
+                refined_valid = bool(refined_stability and refined_stability["valid"])
+                if refined_valid:
+                    break
+            if refinement_iterations:
+                minima.append({
+                    "seed_name": f"{name}:refined",
+                    "nu_f": refined,
+                    "energy_meV_per_cell": refined_energy,
+                    "success": refined_valid,
+                    "stationarity": refined_stationarity,
+                    "local_stability": refined_stability,
+                    "optimizer_iterations": optimizer_iterations,
+                    "refinement_iterations": refinement_iterations,
+                    "total_iterations": optimizer_iterations+refinement_iterations,
+                    "energy_decrease_meV": energy-refined_energy,
+                    "message": "exact feasible redistribution refinement",
+                })
 
-    minima.sort(key=lambda item: float(item["energy_meV_per_cell"]))
-    best = minima[0]
+    minima.sort(key=lambda item: float(item["energy_meV_per_cell"]) if np.isfinite(item["energy_meV_per_cell"]) else float("inf"))
+    accepted = [candidate for candidate in minima if candidate["success"]]
+    # If every solve failed, retain a diagnostic candidate with success=False.
+    # Raw seeds and failed optimizer attempts never certify a minimum.
+    best = accepted[0] if accepted else minima[0]
     return StonerResult(
         nu_total=float(nu_total),
         nu_f=np.asarray(best["nu_f"], dtype=float),

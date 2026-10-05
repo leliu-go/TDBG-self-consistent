@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Run projected/full SCF, then a four-flavor Stoner model on full bands."""
+"""Run full self-consistent Hartree, then four-flavor full-band Stoner."""
 from __future__ import annotations
 
 import argparse
@@ -24,15 +24,14 @@ if str(REPO_ROOT) not in sys.path:
 from tdbg_scf import (
     FullSCFConfig,
     FullSCFSolver,
-    ProjectedSCFConfig,
-    ProjectedSCFSolver,
     TDBGContinuumHamiltonian,
     TDBGParameters,
-    linear_potential_from_D,
     make_uniform_mbz_grid,
 )
 from tdbg_scf.constants import cm2_to_a2
-from tdbg_scf.density import dos_at_mu_gaussian, find_mu_for_density
+from tdbg_scf.density import dos_at_mu_gaussian, find_mu_for_density, full_layer_density, validate_gaussian_sigma
+from tdbg_scf.electrostatics import LayerElectrostatics
+from tdbg_scf.output_metadata import hamiltonian_metadata, hamiltonian_npz_metadata, displacement_metadata
 from tdbg_scf.filling import filling_to_density_cm2, moire_cell_area_A2_from_weights
 from tdbg_scf.plotting import compute_full_bands_along_path, plot_bands, plot_layer_profile
 from tdbg_scf.stoner.full_band import (
@@ -40,14 +39,18 @@ from tdbg_scf.stoner.full_band import (
     density_cm2_to_nu_total,
     explicit_flavor_dos_at_mu,
     layer_polarizations,
+    layer_dos_at_mu_gaussian,
     restrict_tables_to_carrier_sector,
     stoner_flavor_layer_dos_at_mu,
     stoner_flavor_layer_fillings,
     stoner_mu_by_flavor,
+    stoner_mean_field_fermi_level,
     stoner_result_to_dict,
 )
 from tdbg_scf.stoner.params import StonerParams
 from tdbg_scf.stoner.solver import solve_stoner_fixed_nu
+from tdbg_scf.scf_outputs import scf_point_record
+from tdbg_scf.scf_checks import scf_convergence_diagnostics, require_converged_scf
 
 
 FLAVOR_NAMES = ["K_up", "Kp_up", "K_down", "Kp_down"]
@@ -79,19 +82,11 @@ def add_hamiltonian_args(ap: argparse.ArgumentParser) -> None:
 def add_full_scf_args(ap: argparse.ArgumentParser) -> None:
     ap.add_argument("--grid-n1", type=int, default=24)
     ap.add_argument("--grid-n2", type=int, default=24)
-    ap.add_argument("--scf-source", choices=["projected_8band", "full"], default="projected_8band")
     ap.add_argument("--scf-valley", type=int, choices=[-1, 1], default=1)
-    ap.add_argument("--full-scf-valley", type=int, choices=[-1, 1], default=None)
-    ap.add_argument("--n-active", type=int, default=8)
-    ap.add_argument("--selection", choices=["closest", "contiguous", "overlap"], default="overlap")
-    ap.add_argument("--projector-refreshes", type=int, default=0)
-    ap.add_argument("--projected-reference-mode", choices=["uploaded_D", "bare_D", "zero", "full_scf"], default="uploaded_D")
-    ap.add_argument("--max-iter", "--projected-max-iter", dest="projected_max_iter", type=int, default=100)
-    ap.add_argument("--tol-meV", "--projected-tol-meV", dest="projected_tol_meV", type=float, default=1e-4)
     ap.add_argument("--kBT-meV", type=float, default=0.2)
     ap.add_argument("--eps-perp", type=float, default=3.0)
     ap.add_argument("--d-layer-nm", type=float, default=0.335)
-    ap.add_argument("--D-sign", type=float, default=-1.0)
+    ap.add_argument("--D-sign", type=float, choices=[-1, 1], default=-1.0)
     ap.add_argument("--full-max-iter", type=int, default=60)
     ap.add_argument("--full-tol-meV", type=float, default=1e-4)
     ap.add_argument("--mixer", choices=["linear", "anderson"], default="anderson")
@@ -156,90 +151,30 @@ def stoner_params_from_args(args: argparse.Namespace) -> StonerParams:
 
 
 def scf_valley(args: argparse.Namespace) -> int:
-    return int(args.full_scf_valley if args.full_scf_valley is not None else args.scf_valley)
-
-
-def supplied_projector_U(args: argparse.Namespace, D_Vnm: float) -> np.ndarray | None:
-    if args.projected_reference_mode == "full_scf":
-        return None
-    if args.projected_reference_mode == "zero":
-        return np.zeros(4, dtype=float)
-    strength = "bare" if args.projected_reference_mode == "bare_D" else "uploaded"
-    U = linear_potential_from_D(float(D_Vnm), strength=strength, D_sign=float(args.D_sign))
-    U -= np.mean(U)
-    return U
+    return int(args.scf_valley)
 
 
 def run_scf_reference(args: argparse.Namespace, ham: TDBGContinuumHamiltonian, kpts: np.ndarray, weights: np.ndarray, n_cm2: float, D_Vnm: float):
-    if args.scf_source == "full":
-        cfg = FullSCFConfig(
-            target_density_cm2=n_cm2,
-            D_Vnm=D_Vnm,
-            degeneracy=4,
-            kBT_meV=args.kBT_meV,
-            max_iter=args.full_max_iter,
-            tol_meV=args.full_tol_meV,
-            eps_perp=args.eps_perp,
-            d_layer_nm=args.d_layer_nm,
-            D_sign=args.D_sign,
-            mixer=args.mixer,
-            mixer_kwargs=mixer_kwargs(args),
-            keep_eigensystem=True,
-        )
-        result = FullSCFSolver(ham, kpts, weights).solve(cfg)
-        return result, {"scf_source": "full", "reference_mode": "full"}
-
-    supplied_U = supplied_projector_U(args, D_Vnm)
-    full_cfg = None
-    reference_mode = "supplied_U"
-    if args.projected_reference_mode == "full_scf":
-        reference_mode = "full_scf"
-        full_cfg = FullSCFConfig(
-            target_density_cm2=n_cm2,
-            D_Vnm=D_Vnm,
-            degeneracy=4,
-            kBT_meV=args.kBT_meV,
-            max_iter=args.full_max_iter,
-            tol_meV=args.full_tol_meV,
-            eps_perp=args.eps_perp,
-            d_layer_nm=args.d_layer_nm,
-            D_sign=args.D_sign,
-            mixer=args.mixer,
-            mixer_kwargs=mixer_kwargs(args),
-            keep_eigensystem=False,
-        )
-
-    cfg = ProjectedSCFConfig(
+    cfg = FullSCFConfig(
         target_density_cm2=n_cm2,
         D_Vnm=D_Vnm,
-        n_active=args.n_active,
         degeneracy=4,
         kBT_meV=args.kBT_meV,
-        max_iter=args.projected_max_iter,
-        tol_meV=args.projected_tol_meV,
+        max_iter=args.full_max_iter,
+        tol_meV=args.full_tol_meV,
         eps_perp=args.eps_perp,
         d_layer_nm=args.d_layer_nm,
         D_sign=args.D_sign,
         mixer=args.mixer,
         mixer_kwargs=mixer_kwargs(args),
-        selection=args.selection,
-        grid_shape=(args.grid_n1, args.grid_n2),
-        projector_refreshes=args.projector_refreshes,
-        reference_mode=reference_mode,
-        supplied_U_ref_meV=supplied_U,
-        full_scf_config=full_cfg,
+        keep_eigensystem=True,
     )
-    result = ProjectedSCFSolver(ham, kpts, weights, grid_shape=(args.grid_n1, args.grid_n2)).solve(cfg)
-    return result, {
-        "scf_source": "projected_8band",
-        "reference_mode": args.projected_reference_mode,
-        "n_active": int(args.n_active),
-        "selection": args.selection,
-        "projector_refreshes": int(args.projector_refreshes),
-    }
+    result = FullSCFSolver(ham, kpts, weights).solve(cfg)
+    return result, {"scf_source": "full", "reference_mode": "full"}
 
 
 def gaussian_dos_curve(evals_by_flavor: list[np.ndarray], weights: np.ndarray, centers: np.ndarray, sigma_meV: float) -> np.ndarray:
+    sigma_meV = validate_gaussian_sigma(sigma_meV)
     dos = np.zeros_like(centers, dtype=float)
     for evals in evals_by_flavor:
         flat_e = evals.reshape(-1)
@@ -250,12 +185,37 @@ def gaussian_dos_curve(evals_by_flavor: list[np.ndarray], weights: np.ndarray, c
     return dos
 
 
+def full_hartree_consistency(evals, evecs, weights, layer_masks, U_meV, n_cm2,
+                             D_Vnm, kBT_meV, eps_perp, d_layer_nm, D_sign, tol_meV):
+    """Evaluate full Hartree at the existing U without another diagonalization.
+
+    Use the SCF valley and spin/valley degeneracy four, matching FullSCFSolver.
+    This independently verifies the accepted solution using its final states.
+    """
+    mu = find_mu_for_density(evals, weights, cm2_to_a2(n_cm2), degeneracy=4, kBT_meV=kBT_meV)
+    density = full_layer_density(mu, evals, evecs, weights, layer_masks,
+                                 degeneracy=4, kBT_meV=kBT_meV,
+                                 target_density_a2=cm2_to_a2(n_cm2))
+    electro = LayerElectrostatics(len(U_meV), d_layer_nm=d_layer_nm, eps_perp=eps_perp, D_sign=D_sign)
+    _, bottom = electro.gate_densities(cm2_to_a2(n_cm2), D_Vnm)
+    residual = float(np.max(np.abs(electro.update_U_from_density(density, bottom)-U_meV)))
+    charge_error = abs(float(np.sum(density)*1e16)-n_cm2)
+    return {
+        "scf_full_hartree_residual_meV": residual,
+        "scf_full_hartree_consistent": bool(np.isfinite(residual) and residual < tol_meV
+                                             and charge_error < max(1e4,abs(n_cm2)*1e-8)),
+        "scf_full_hartree_mu_meV": float(mu),
+        "scf_full_hartree_charge_error_cm2": charge_error,
+        **{f"scf_full_hartree_n{layer+1}_cm2": float(value*1e16)
+           for layer, value in enumerate(density)},
+    }
+
+
 def full_band_dos_summary(
     evals_K: np.ndarray,
     evals_Kp: np.ndarray,
     weights: np.ndarray,
     n_cm2: float,
-    projected_mu_meV: float,
     sigma_meV: float,
     kBT_meV: float,
 ) -> dict[str, float]:
@@ -267,34 +227,37 @@ def full_band_dos_summary(
         degeneracy=2,
         kBT_meV=float(kBT_meV),
     )
-    dos_at_projected_mu = float(
-        2.0 * dos_at_mu_gaussian(evals_K, weights, float(projected_mu_meV), sigma_meV=sigma_meV, degeneracy=1)
-        + 2.0 * dos_at_mu_gaussian(evals_Kp, weights, float(projected_mu_meV), sigma_meV=sigma_meV, degeneracy=1)
-    )
     dos_at_full_mu = float(
         2.0 * dos_at_mu_gaussian(evals_K, weights, full_mu, sigma_meV=sigma_meV, degeneracy=1)
         + 2.0 * dos_at_mu_gaussian(evals_Kp, weights, full_mu, sigma_meV=sigma_meV, degeneracy=1)
     )
     return {
         "full_mu_meV": float(full_mu),
-        "dos_mu_full_at_projected_mu": dos_at_projected_mu,
         "dos_mu_full_at_full_mu": dos_at_full_mu,
     }
 
 
 def save_dos_figure(out: Path, evals_K: np.ndarray, evals_Kp: np.ndarray, weights: np.ndarray,
-                    reference_mu: float, mu_f: np.ndarray, args: argparse.Namespace) -> None:
-    centers = np.linspace(args.dos_emin_meV, args.dos_emax_meV, args.dos_bins)
-    evals_by_flavor = [evals_K - reference_mu, evals_Kp - reference_mu, evals_K - reference_mu, evals_Kp - reference_mu]
-    dos = gaussian_dos_curve(evals_by_flavor, weights, centers, args.dos_sigma_meV)
-    np.savez(out / "full_band_stoner_dos.npz", energy_meV=centers, dos=dos, full_mu_meV=reference_mu, mu_f_meV=mu_f)
+                    reference_mu: float, mu_f: np.ndarray, args: argparse.Namespace,
+                    ham: TDBGContinuumHamiltonian, dos_data=None) -> None:
+    if dos_data is None:
+        centers = np.linspace(args.dos_emin_meV, args.dos_emax_meV, args.dos_bins)
+        before = gaussian_dos_curve([evals_K-reference_mu, evals_Kp-reference_mu]*2,
+                                     weights, centers, args.dos_sigma_meV)
+    else:
+        centers, before = dos_data
+    # mu_f=mu_common-Sigma_f, so each curve has the same interacting Fermi zero.
+    after = gaussian_dos_curve([E-mu for E,mu in zip([evals_K,evals_Kp]*2,mu_f)],
+                               weights, centers, args.dos_sigma_meV)
+    np.savez(out / "full_band_stoner_dos.npz", **hamiltonian_npz_metadata(ham),
+             energy_meV=centers, dos=after, scf_dos=before, full_mu_meV=reference_mu,
+             mu_f_meV=mu_f, energy_reference="E_plus_Sigma_f_minus_common_stoner_mu")
 
     fig, ax = plt.subplots(figsize=(4.4, 3.2))
-    ax.plot(centers, dos, lw=1.2)
-    ax.axvline(0.0, color="0.4", lw=0.8, ls="--", label="full-band mu")
-    for name, mu in zip(FLAVOR_NAMES, mu_f):
-        ax.axvline(float(mu - reference_mu), lw=0.8, alpha=0.65, label=name)
-    ax.set_xlabel(r"$E-\mu_{\mathrm{full}}$ (meV)")
+    ax.plot(centers, before, lw=1., alpha=.6, label="SCF before Stoner")
+    ax.plot(centers, after, lw=1.2, label="Stoner mean field")
+    ax.axvline(0.0, color="0.4", lw=0.8, ls="--")
+    ax.set_xlabel(r"Energy relative to each stage's Fermi level (meV)")
     ax.set_ylabel(r"DOS (A$^{-2}$ meV$^{-1}$)")
     ax.legend(fontsize=7, ncol=2)
     fig.tight_layout()
@@ -313,7 +276,7 @@ def save_flavor_occupations(out: Path, nu_f: np.ndarray) -> None:
     plt.close(fig)
 
 
-def save_layer_dos_bars(out: Path, layer_dos: np.ndarray) -> None:
+def save_layer_dos_bars(out: Path, layer_dos: np.ndarray, filename="stoner_layer_dos.png") -> None:
     layers = np.arange(1, len(layer_dos) + 1)
     fig, ax = plt.subplots(figsize=(4.2, 3.0))
     ax.bar(layers, layer_dos)
@@ -321,7 +284,7 @@ def save_layer_dos_bars(out: Path, layer_dos: np.ndarray) -> None:
     ax.set_xlabel("Layer")
     ax.set_ylabel(r"DOS (A$^{-2}$ meV$^{-1}$)")
     fig.tight_layout()
-    fig.savefig(out / "stoner_layer_dos.png", dpi=220)
+    fig.savefig(out / filename, dpi=220)
     plt.close(fig)
 
 
@@ -341,11 +304,12 @@ def save_flavor_layer_bars(out: Path, values: np.ndarray, ylabel: str, filename:
 
 
 def layer_dos_polarizations(layer_dos: np.ndarray) -> dict[str, float]:
-    d1, d2, d3, d4 = [float(x) for x in layer_dos]
+    """Apply the exact layer_polarizations coefficients to layer DOS."""
+    pol = layer_polarizations(layer_dos)
     return {
-        "layer_dos_top_bottom": (d1 + d2) - (d3 + d4),
-        "layer_dos_outer_inner": (d1 + d4) - (d2 + d3),
-        "layer_dos_dipole": 1.5 * d1 + 0.5 * d2 - 0.5 * d3 - 1.5 * d4,
+        "layer_dos_top_bottom": pol["P_top_bottom_cm2"],
+        "layer_dos_outer_inner": pol["P_outer_inner_cm2"],
+        "layer_dos_dipole": pol["P_dipole_cm2"],
     }
 
 
@@ -365,7 +329,7 @@ def save_stoner_flavor_bands(out: Path, dist: np.ndarray, bands_K: np.ndarray, b
         ax.axhline(0.0, color="0.5", lw=0.7, ls="--")
         ax.set_title(name)
         ax.set_xticks([dist[t] for t in ticks], labels)
-        ax.set_ylabel(r"$E-\mu_f$ (meV)")
+        ax.set_ylabel(r"$E+\Sigma_f-\mu$ (meV)")
     fig.tight_layout()
     fig.savefig(out / "stoner_flavor_bands.png", dpi=220)
     plt.close(fig)
@@ -431,6 +395,70 @@ def plot_contour_panels(
     plt.close(fig)
 
 
+def prepare_contour_data(args, ham_K, ham_Kp, U_meV, scf_kpts, evals_K, evals_Kp):
+    if args.contour_n1 > 0 and args.contour_n2 > 0:
+        kpts, _ = make_uniform_mbz_grid(ham_K.geom, args.contour_n1, args.contour_n2)
+        evals_K = diagonalize_evals_only(ham_K, kpts, U_meV)
+        evals_Kp = diagonalize_evals_only(ham_Kp, kpts, U_meV)
+    else:
+        kpts = scf_kpts
+    return kpts, evals_K, evals_Kp, contour_band_indices(evals_K.shape[1], args.contour_band_count)
+
+
+def write_scf_point_summary(out, row, ham):
+    write_json(out / "summary.json", {"stage": "scf_before_stoner", "point": scf_point_record(row, ham),
+                                     "hamiltonian": hamiltonian_metadata(ham)})
+
+
+def save_scf_detail_outputs(out, row, args, ham_K, ham_Kp, kpts, weights, scf, evals_K, evals_Kp):
+    """Save the unpolarized stage once, before Stoner; return data for its plots."""
+    out.mkdir(parents=True, exist_ok=True)
+    write_scf_point_summary(out, row, ham_K)
+    pd.DataFrame(scf.history).to_csv(out / "scf_history.csv", index=False)
+    layer_dos = np.array([row[f"scf_layer_dos_L{i}"] for i in range(1, 4 + 1)])
+    pd.DataFrame({"layer": np.arange(1, 4 + 1), "U_meV": scf.U_meV,
+                  "n_cm2": scf.n_layer_cm2, "layer_dos": layer_dos}).to_csv(out / "layers.csv", index=False)
+    full_mu = float(row["full_mu_meV"])
+    np.savez(out / "spectrum.npz", **hamiltonian_npz_metadata(ham_K),
+             **displacement_metadata(args.D_sign), stage="scf_before_stoner", kpts=kpts, weights=weights,
+             U_meV=scf.U_meV, scf_mu_meV=scf.mu_meV, full_mu_meV=full_mu,
+             evals_K_meV=evals_K, evals_Kp_meV=evals_Kp, n_layer_cm2=scf.n_layer_cm2,
+             layer_dos=layer_dos)
+    centers = np.linspace(args.dos_emin_meV, args.dos_emax_meV, args.dos_bins)
+    shifted = [evals_K - full_mu, evals_Kp - full_mu]
+    dos = 2 * gaussian_dos_curve(shifted, weights, centers, args.dos_sigma_meV)
+    np.savez(out / "dos.npz", **hamiltonian_npz_metadata(ham_K), stage="scf_before_stoner",
+             energy_meV=centers, dos=dos, full_mu_meV=full_mu, scf_mu_meV=scf.mu_meV,
+             dos_sigma_meV=args.dos_sigma_meV)
+    fig, ax = plt.subplots(figsize=(4.4, 3.2))
+    ax.plot(centers, dos, lw=1.2)
+    ax.axvline(0, color=".5", ls="--", lw=.8)
+    ax.set(xlabel=r"$E-\mu_{\mathrm{full}}$ (meV)", ylabel=r"DOS (A$^{-2}$ meV$^{-1}$)",
+           title=f"SCF before Stoner: ABBA")
+    fig.tight_layout()
+    fig.savefig(out / "dos.png", dpi=220)
+    plt.close(fig)
+    plot_layer_profile(scf.U_meV, scf.n_layer_cm2, out=str(out / "layer_profile.png"))
+    save_layer_dos_bars(out, layer_dos, filename="layer_dos.png")
+    bands_data = []
+    for valley_name, ham in [("K", ham_K), ("Kp", ham_Kp)]:
+        dist, bands, ticks, labels = compute_full_bands_along_path(ham, scf.U_meV, points_per_segment=args.points_per_segment)
+        np.savez(out / f"full_bands_{valley_name}.npz", **hamiltonian_npz_metadata(ham),
+                 dist=dist, bands=bands, ticks=ticks, labels=labels, mu_meV=full_mu)
+        plot_bands(dist, bands, ticks, labels, mu_meV=full_mu, n_show=args.n_show_full,
+                   title=f"SCF bands {valley_name}: ABBA", out=str(out / f"full_bands_{valley_name}.png"))
+        bands_data.append((dist, bands, ticks, labels))
+    contours = prepare_contour_data(args, ham_K, ham_Kp, scf.U_meV, kpts, evals_K, evals_Kp)
+    contour_kpts, contour_K, contour_Kp, indices = contours
+    np.savez(out / "full_band_contours_before_stoner.npz", **hamiltonian_npz_metadata(ham_K),
+             kpts=contour_kpts, evals_K_meV=contour_K, evals_Kp_meV=contour_Kp,
+             full_mu_meV=full_mu, band_indices=np.asarray(indices))
+    plot_contour_panels(out, "full_band_contours_before_stoner.png", contour_kpts,
+                        [("K before Stoner", contour_K, full_mu), ("Kp before Stoner", contour_Kp, full_mu)],
+                        indices, "SCF contours before Stoner")
+    return {"dos": (centers, dos), "bands": bands_data, "contours": contours}
+
+
 def save_full_band_contours(
     out: Path,
     args: argparse.Namespace,
@@ -442,36 +470,15 @@ def save_full_band_contours(
     evals_Kp: np.ndarray,
     full_mu: float,
     mu_f: np.ndarray,
+    contour_data=None,
 ) -> None:
-    if args.contour_n1 > 0 and args.contour_n2 > 0:
-        contour_kpts, _ = make_uniform_mbz_grid(ham_K.geom, args.contour_n1, args.contour_n2)
-        contour_evals_K = diagonalize_evals_only(ham_K, contour_kpts, U_meV)
-        contour_evals_Kp = diagonalize_evals_only(ham_Kp, contour_kpts, U_meV)
-    else:
-        contour_kpts = scf_kpts
-        contour_evals_K = evals_K
-        contour_evals_Kp = evals_Kp
-
-    band_indices = contour_band_indices(contour_evals_K.shape[1], args.contour_band_count)
-    np.savez(
-        out / "full_band_contours_before_stoner.npz",
-        kpts=contour_kpts,
-        evals_K_meV=contour_evals_K,
-        evals_Kp_meV=contour_evals_Kp,
-        full_mu_meV=float(full_mu),
-        band_indices=np.asarray(band_indices, dtype=int),
-    )
-    plot_contour_panels(
-        out,
-        "full_band_contours_before_stoner.png",
-        contour_kpts,
-        [("K before Stoner", contour_evals_K, float(full_mu)), ("Kp before Stoner", contour_evals_Kp, float(full_mu))],
-        band_indices,
-        "Full-band contours before Stoner",
-    )
+    if contour_data is None:
+        contour_data = prepare_contour_data(args, ham_K, ham_Kp, U_meV, scf_kpts, evals_K, evals_Kp)
+    contour_kpts, contour_evals_K, contour_evals_Kp, band_indices = contour_data
 
     np.savez(
         out / "full_band_contours_stoner_flavors.npz",
+        **hamiltonian_npz_metadata(ham_K),
         kpts=contour_kpts,
         evals_K_meV=contour_evals_K,
         evals_Kp_meV=contour_evals_Kp,
@@ -498,36 +505,186 @@ def point_label(n_index: int, d_index: int, n_cm2: float, d_vnm: float) -> str:
     return f"i{n_index:03d}_j{d_index:03d}_n{n_scaled:+.4f}e12_D{d_vnm:+.4f}".replace("+", "p").replace("-", "m").replace(".", "p")
 
 
+def clear_point_outputs(out: Path) -> None:
+    """Remove only this workflow's named outputs before reusing a directory."""
+    generated = (
+        "summary.json", "run_summary.json", "error.json", "stoner_result.json",
+        "stoner_diagnostics.json", "stoner_fermi_level.json", "stoner_layers.csv",
+        "stoner_flavor_layers.csv", "full_band_stoner_cache.npz",
+        "full_band_stoner_dos.npz", "full_band_stoner_dos.png",
+        "stoner_layer_profile.png", "stoner_layer_dos.png",
+        "stoner_flavor_layer_profile.png", "stoner_flavor_layer_dos.png",
+        "flavor_occupations.png", "stoner_flavor_bands.png", "stoner_flavor_bands.npz",
+        "full_band_contours_stoner_flavors.npz", "full_band_contours_stoner_flavors.png",
+    )
+    baseline = (
+        "summary.json", "diagnostics.json", "scf_history.csv", "layers.csv", "spectrum.npz",
+        "dos.npz", "dos.png", "layer_profile.png", "layer_dos.png",
+        "full_bands_K.npz", "full_bands_Kp.npz", "full_bands_K.png", "full_bands_Kp.png",
+        "full_band_contours_before_stoner.npz", "full_band_contours_before_stoner.png",
+    )
+    for directory, names in ((out, generated), (out / "scf", baseline)):
+        for name in names:
+            target = directory / name
+            if target.is_file():
+                target.unlink()
+
+
 def run_point(task: dict[str, Any], args: argparse.Namespace, detail_dir: Path | None = None) -> dict[str, Any]:
     started = time.time()
     n_cm2 = float(task["n_cm2"])
     D_Vnm = float(task["D_Vnm"])
     label = str(task.get("label", "point"))
+    row = {}
+    ham_K = None
     try:
+        if detail_dir is not None:
+            clear_point_outputs(detail_dir)
         valley_scf = scf_valley(args)
         ham_scf = TDBGContinuumHamiltonian(params_from_args(args, valley_scf))
         ham_K = TDBGContinuumHamiltonian(params_from_args(args, +1))
         ham_Kp = TDBGContinuumHamiltonian(params_from_args(args, -1))
         kpts, weights = make_uniform_mbz_grid(ham_scf.geom, args.grid_n1, args.grid_n2)
         scf, scf_meta = run_scf_reference(args, ham_scf, kpts, weights, n_cm2, D_Vnm)
-        if args.scf_source == "full" and valley_scf == 1 and scf.evals is not None and scf.evecs is not None:
+        scf_tolerance = args.full_tol_meV
+        scf_checks = scf_convergence_diagnostics(scf, n_cm2, scf_tolerance)
+        solver_metadata = {
+            "scf_solver_method": args.mixer,
+            **scf_checks,
+        }
+        row = {
+            **hamiltonian_metadata(ham_scf), **displacement_metadata(args.D_sign),
+            # Export readiness requires completed DOS and density calculations.
+            # A converged solver alone does not make a complete map point.
+            **solver_metadata, "scf_status": "failed",
+            "scf_source": scf_meta["scf_source"], "scf_reference_mode": scf_meta["reference_mode"],
+            "scf_residual_meV": float(scf.residual_meV),
+            "scf_iterations": int(scf.iterations),
+            "scf_mu_meV": float(scf.mu_meV),
+            **{f"U{layer + 1}_meV": float(value) for layer, value in enumerate(scf.U_meV)},
+            **{f"n{layer + 1}_cm2": float(value) for layer, value in enumerate(scf.n_layer_cm2)},
+        }
+        if detail_dir is not None:
+            # Diagnostic states are retained even when physical analysis is
+            # rejected. No DOS, gap, band figure or Stoner is computed here.
+            write_json(detail_dir / "scf" / "diagnostics.json", {
+                **row, "stage": "scf_diagnostics", "U_meV": np.asarray(scf.U_meV).tolist(),
+                "n_layer_cm2": np.asarray(scf.n_layer_cm2).tolist(), "history": scf.history,
+            })
+        try:
+            require_converged_scf(scf, n_cm2, scf_tolerance)
+        except RuntimeError as exc:
+            raise RuntimeError(f"{exc}; DOS/bands/Stoner skipped") from exc
+        if valley_scf == 1 and scf.evals is not None and scf.evecs is not None:
             evals_K, evecs_K = scf.evals, scf.evecs
         else:
             evals_K, evecs_K = ham_K.diagonalize(kpts, scf.U_meV)
-        if args.scf_source == "full" and valley_scf == -1 and scf.evals is not None and scf.evecs is not None:
+        if valley_scf == -1 and scf.evals is not None and scf.evecs is not None:
             evals_Kp, evecs_Kp = scf.evals, scf.evecs
         else:
             evals_Kp, evecs_Kp = ham_Kp.diagonalize(kpts, scf.U_meV)
 
         A_M_A2 = moire_cell_area_A2_from_weights(weights)
         nu_total = density_cm2_to_nu_total(n_cm2, A_M_A2)
+        layer_masks = ham_K.layer_projectors_diagonal()
+        chosen_evals, chosen_evecs = (evals_K, evecs_K) if valley_scf == 1 else (evals_Kp, evecs_Kp)
+        solver_metadata.update(full_hartree_consistency(
+            chosen_evals, chosen_evecs, weights, layer_masks, scf.U_meV, n_cm2,
+            D_Vnm, args.kBT_meV, args.eps_perp, args.d_layer_nm, args.D_sign, scf_tolerance))
+        row.update(solver_metadata)
+        if not solver_metadata["scf_full_hartree_consistent"]:
+            row.update(scf_converged=False, scf_valid=False)
+            raise RuntimeError("Independent full Hartree residual or charge check failed; DOS/bands/Stoner skipped")
+        full_dos = full_band_dos_summary(
+            evals_K, evals_Kp, weights, n_cm2=n_cm2,
+            sigma_meV=args.dos_sigma_meV, kBT_meV=args.kBT_meV,
+        )
+        full_mu = full_dos["full_mu_meV"]
+        # Two valleys with two spins each, at the density-matched full-band mu.
+        scf_layer_dos = 2 * (
+            layer_dos_at_mu_gaussian(evals_K, evecs_K, weights, layer_masks, full_mu, args.dos_sigma_meV)
+            + layer_dos_at_mu_gaussian(evals_Kp, evecs_Kp, weights, layer_masks, full_mu, args.dos_sigma_meV)
+        )
+        n_layer_cm2 = np.asarray(scf.n_layer_cm2, dtype=float)
+        row = {
+            "status": "ok", "scf_status": "ok",
+            **solver_metadata,
+            **hamiltonian_metadata(ham_scf), **displacement_metadata(args.D_sign),
+            "label": label, "n_index": task.get("n_index", 0), "D_index": task.get("D_index", 0),
+            "n_cm2": n_cm2, "D_Vnm": D_Vnm, "nu_total": float(nu_total), "A_M_A2": float(A_M_A2),
+            "scf_source": scf_meta["scf_source"], "scf_reference_mode": scf_meta["reference_mode"],
+            "scf_valley": int(valley_scf), "eps_perp": float(args.eps_perp), "d_layer_nm": float(args.d_layer_nm),
+            "scf_mu_meV": float(scf.mu_meV), "scf_converged": bool(scf.converged),
+            "scf_residual_meV": float(scf.residual_meV), "scf_iterations": int(scf.iterations),
+            "full_converged": bool(scf.converged), "full_residual_meV": float(scf.residual_meV),
+            "full_iterations": int(scf.iterations), **full_dos,
+            "dos_mu_scf": full_dos["dos_mu_full_at_full_mu"],
+            "dos_mu_full_scf": full_dos["dos_mu_full_at_full_mu"],
+            **{f"U{layer + 1}_meV": float(value) for layer, value in enumerate(scf.U_meV)},
+            **{f"n{layer + 1}_cm2": float(value) for layer, value in enumerate(n_layer_cm2)},
+            **layer_polarizations(n_layer_cm2),
+            **{f"scf_layer_dos_L{layer + 1}": float(value) for layer, value in enumerate(scf_layer_dos)},
+            "scf_layer_dos_total": float(np.sum(scf_layer_dos)),
+            **{f"scf_{key}": value for key, value in layer_dos_polarizations(scf_layer_dos).items()},
+        }
+        detail_data = None
+        if detail_dir is not None:
+            detail_data = save_scf_detail_outputs(
+                detail_dir / "scf", row, args, ham_K, ham_Kp, kpts, weights, scf, evals_K, evals_Kp,
+            )
         tables = restrict_tables_to_carrier_sector(
             build_full_band_flavor_tables(evals_K, evals_Kp, weights, A_M_A2),
             nu_total,
         )
-        stoner = solve_stoner_fixed_nu(nu_total, tables, stoner_params_from_args(args), A_M_A2)
+        stoner_params = stoner_params_from_args(args)
+        stoner = solve_stoner_fixed_nu(nu_total, tables, stoner_params, A_M_A2)
+        nu_f = np.asarray(stoner.nu_f, dtype=float)
+        stoner_valid = bool(
+            stoner.success and nu_f.shape == (4,) and np.isfinite(nu_f).all()
+            and np.isfinite(stoner.energy_meV_per_cell)
+            and abs(float(np.sum(nu_f)) - nu_total) < 1e-8
+            and all(table.nu_min - 1e-8 <= value <= table.nu_max + 1e-8
+                    for value, table in zip(nu_f, tables))
+        )
+        row["stoner_success"] = stoner_valid
+        if detail_dir is not None:
+            write_json(detail_dir / "stoner_diagnostics.json", {
+                "accepted": stoner_valid, "optimizer_success": bool(stoner.success),
+                "nu_total": nu_total, "nu_f": nu_f.tolist(),
+                "energy_meV_per_cell": float(stoner.energy_meV_per_cell),
+                "seed_name": stoner.seed_name,
+                "local_minima": [
+                    {**candidate, "nu_f": np.asarray(candidate["nu_f"]).tolist()}
+                    for candidate in stoner.local_minima
+                ],
+            })
+        if not stoner_valid:
+            raise RuntimeError("Stoner did not converge to a finite, filling-conserving solution; "
+                               "Stoner DOS/layer/band outputs skipped; SCF outputs retained")
+        fermi_level = stoner_mean_field_fermi_level(stoner, tables, stoner_params, A_M_A2)
+        stoner.mean_field_fermi_level = fermi_level
+        row.update({
+            "stoner_optimizer_success": True,
+            "stoner_kkt_valid": fermi_level["optimization_valid"],
+            "stoner_dos_valid": fermi_level["valid"],
+            "stoner_mu_common_meV": fermi_level["mu_common_meV"],
+            "stoner_mu_interval_mismatch_meV": fermi_level["interval_mismatch_meV"],
+            "stoner_mu_constraint_mismatch_meV": fermi_level["constraint_mismatch_meV"],
+            "stoner_mu_convention": fermi_level["convention"],
+            "stoner_fermi_level_reason": fermi_level["reason"],
+            **{f"stoner_self_energy_{flavor}_meV": float(value)
+               for flavor, value in zip(FLAVOR_NAMES, fermi_level["self_energy_f_meV"])},
+        })
+        if detail_dir is not None:
+            write_json(detail_dir / "stoner_fermi_level.json", fermi_level)
+        if not fermi_level["optimization_valid"]:
+            row["stoner_success"] = False
+            raise RuntimeError("Stoner optimizer violates constrained stationarity; "
+                               "Stoner outputs skipped; SCF outputs retained")
+        # Retain carrier-sector occupations/energy if that restricted model
+        # has no physical common Fermi level. DOS and spectral plots are NaN.
+        stoner.mu_f_meV = np.asarray(fermi_level["mu_f_meV"], dtype=float)
         mu_f = stoner_mu_by_flavor(stoner, tables)
-        layer_masks = ham_K.layer_projectors_diagonal()
         stoner_flavor_nu_layer = stoner_flavor_layer_fillings(
             evals_K,
             evecs_K,
@@ -553,46 +710,15 @@ def run_point(task: dict[str, Any], args: argparse.Namespace, detail_dir: Path |
             layer_masks,
             mu_f,
             args.dos_sigma_meV,
-        )
+        ) if fermi_level["valid"] else np.full((4, 4), np.nan)
         stoner_layer_dos = np.sum(stoner_flavor_layer_dos, axis=0)
 
-        n_layer_cm2 = np.asarray(scf.n_layer_cm2, dtype=float)
-        pol = layer_polarizations(n_layer_cm2)
         stoner_pol = {f"stoner_{key}": value for key, value in layer_polarizations(stoner_n_layer_cm2).items()}
         stoner_layer_dos_pol = {
             "stoner_layer_dos_total": float(np.sum(stoner_layer_dos)),
-            "stoner_layer_dos_top_bottom": float((stoner_layer_dos[0] + stoner_layer_dos[1]) - (stoner_layer_dos[2] + stoner_layer_dos[3])),
-            "stoner_layer_dos_outer_inner": float((stoner_layer_dos[0] + stoner_layer_dos[3]) - (stoner_layer_dos[1] + stoner_layer_dos[2])),
-            "stoner_layer_dos_dipole": float(1.5 * stoner_layer_dos[0] + 0.5 * stoner_layer_dos[1] - 0.5 * stoner_layer_dos[2] - 1.5 * stoner_layer_dos[3]),
+            **{f"stoner_{key}": value for key, value in layer_dos_polarizations(stoner_layer_dos).items()},
         }
-        full_dos = full_band_dos_summary(
-            evals_K,
-            evals_Kp,
-            weights,
-            n_cm2=n_cm2,
-            projected_mu_meV=scf.mu_meV,
-            sigma_meV=args.dos_sigma_meV,
-            kBT_meV=args.kBT_meV,
-        )
-        row = {
-            "status": "ok",
-            "label": label,
-            "scf_source": scf_meta["scf_source"],
-            "scf_reference_mode": scf_meta["reference_mode"],
-            "n_index": task.get("n_index", 0),
-            "D_index": task.get("D_index", 0),
-            "n_cm2": n_cm2,
-            "nu_total": float(nu_total),
-            "D_Vnm": D_Vnm,
-            "A_M_A2": float(A_M_A2),
-            "scf_mu_meV": float(scf.mu_meV),
-            "scf_converged": bool(scf.converged),
-            "scf_residual_meV": float(scf.residual_meV),
-            "scf_iterations": int(scf.iterations),
-            "full_mu_meV": full_dos["full_mu_meV"],
-            "full_converged": bool(scf.converged),
-            "full_residual_meV": float(scf.residual_meV),
-            "full_iterations": int(scf.iterations),
+        row.update({
             "stoner_success": bool(stoner.success),
             "stoner_seed": stoner.seed_name,
             "stoner_energy_meV_per_cell": float(stoner.energy_meV_per_cell),
@@ -611,31 +737,13 @@ def run_point(task: dict[str, Any], args: argparse.Namespace, detail_dir: Path |
             "spin_valley_polarization": stoner.spin_valley_polarization,
             "spin_valley_polarization_norm": stoner.spin_valley_polarization_norm,
             "flavor_polarization": stoner.flavor_polarization,
-            "dos_mu_scf": full_dos["dos_mu_full_at_full_mu"],
-            "dos_mu_full_scf": full_dos["dos_mu_full_at_full_mu"],
-            "dos_mu_full_at_full_mu": full_dos["dos_mu_full_at_full_mu"],
-            "dos_mu_full_at_projected_mu": full_dos["dos_mu_full_at_projected_mu"],
-            "dos_mu_stoner": explicit_flavor_dos_at_mu(evals_K, evals_Kp, weights, mu_f, args.dos_sigma_meV),
-            "U1_meV": float(scf.U_meV[0]),
-            "U2_meV": float(scf.U_meV[1]),
-            "U3_meV": float(scf.U_meV[2]),
-            "U4_meV": float(scf.U_meV[3]),
-            "n1_cm2": float(n_layer_cm2[0]),
-            "n2_cm2": float(n_layer_cm2[1]),
-            "n3_cm2": float(n_layer_cm2[2]),
-            "n4_cm2": float(n_layer_cm2[3]),
-            "stoner_n1_cm2": float(stoner_n_layer_cm2[0]),
-            "stoner_n2_cm2": float(stoner_n_layer_cm2[1]),
-            "stoner_n3_cm2": float(stoner_n_layer_cm2[2]),
-            "stoner_n4_cm2": float(stoner_n_layer_cm2[3]),
+            "dos_mu_stoner": (explicit_flavor_dos_at_mu(evals_K, evals_Kp, weights, mu_f, args.dos_sigma_meV)
+                              if fermi_level["valid"] else float("nan")),
+            **{f"stoner_n{layer + 1}_cm2": float(value) for layer, value in enumerate(stoner_n_layer_cm2)},
             "stoner_n_total_layer_cm2": float(np.sum(stoner_n_layer_cm2)),
-            "stoner_layer_dos_L1": float(stoner_layer_dos[0]),
-            "stoner_layer_dos_L2": float(stoner_layer_dos[1]),
-            "stoner_layer_dos_L3": float(stoner_layer_dos[2]),
-            "stoner_layer_dos_L4": float(stoner_layer_dos[3]),
+            **{f"stoner_layer_dos_L{layer + 1}": float(value) for layer, value in enumerate(stoner_layer_dos)},
             "runtime_s": float(time.time() - started),
-        }
-        row.update(pol)
+        })
         row.update(stoner_pol)
         row.update(stoner_layer_dos_pol)
         for flavor_index, flavor_name in enumerate(FLAVOR_NAMES):
@@ -667,11 +775,15 @@ def run_point(task: dict[str, Any], args: argparse.Namespace, detail_dir: Path |
                 evecs_Kp,
                 stoner,
                 tables,
+                detail_data,
             )
+            write_scf_point_summary(detail_dir / "scf", row, ham_K)
         return row
     except Exception as exc:
         error = {
+            **row,
             "status": "failed",
+            "scf_status": row.get("scf_status", "failed"),
             "label": label,
             "n_index": task.get("n_index", 0),
             "D_index": task.get("D_index", 0),
@@ -682,6 +794,8 @@ def run_point(task: dict[str, Any], args: argparse.Namespace, detail_dir: Path |
         }
         if detail_dir is not None:
             detail_dir.mkdir(parents=True, exist_ok=True)
+            if ham_K is not None and (detail_dir / "scf").is_dir():
+                write_scf_point_summary(detail_dir / "scf", error, ham_K)
             write_json(detail_dir / "error.json", error)
         return error
 
@@ -701,18 +815,22 @@ def save_detail_outputs(
     evecs_Kp: np.ndarray,
     stoner,
     tables,
+    detail_data,
 ) -> None:
     out.mkdir(parents=True, exist_ok=True)
     stoner_dict = stoner_result_to_dict(stoner, tables)
-    write_json(out / "summary.json", {"point": row, "stoner": stoner_dict})
+    write_json(out / "summary.json", {
+        "point": row,
+        "stoner": stoner_dict,
+        "hamiltonian": hamiltonian_metadata(ham_K),
+        "displacement": displacement_metadata(args.D_sign),
+    })
     write_json(out / "stoner_result.json", stoner_dict)
-    pd.DataFrame(scf.history).to_csv(out / "scf_history.csv", index=False)
-    pd.DataFrame({"layer": [1, 2, 3, 4], "U_meV": scf.U_meV, "n_cm2": scf.n_layer_cm2}).to_csv(out / "layers.csv", index=False)
-    stoner_n_layer_cm2 = np.asarray([row[f"stoner_n{layer}_cm2"] for layer in range(1, 5)], dtype=float)
-    stoner_layer_dos = np.asarray([row[f"stoner_layer_dos_L{layer}"] for layer in range(1, 5)], dtype=float)
+    stoner_n_layer_cm2 = np.asarray([row[f"stoner_n{layer}_cm2"] for layer in range(1, 4 + 1)], dtype=float)
+    stoner_layer_dos = np.asarray([row[f"stoner_layer_dos_L{layer}"] for layer in range(1, 4 + 1)], dtype=float)
     pd.DataFrame(
         {
-            "layer": [1, 2, 3, 4],
+            "layer": np.arange(1, 4 + 1),
             "U_meV": scf.U_meV,
             "scf_n_cm2": scf.n_layer_cm2,
             "stoner_n_cm2": stoner_n_layer_cm2,
@@ -720,11 +838,11 @@ def save_detail_outputs(
         }
     ).to_csv(out / "stoner_layers.csv", index=False)
     stoner_flavor_n_layer_cm2 = np.asarray(
-        [[row[f"stoner_{flavor}_n{layer}_cm2"] for layer in range(1, 5)] for flavor in FLAVOR_NAMES],
+        [[row[f"stoner_{flavor}_n{layer}_cm2"] for layer in range(1, 4 + 1)] for flavor in FLAVOR_NAMES],
         dtype=float,
     )
     stoner_flavor_layer_dos = np.asarray(
-        [[row[f"stoner_{flavor}_layer_dos_L{layer}"] for layer in range(1, 5)] for flavor in FLAVOR_NAMES],
+        [[row[f"stoner_{flavor}_layer_dos_L{layer}"] for layer in range(1, 4 + 1)] for flavor in FLAVOR_NAMES],
         dtype=float,
     )
     flavor_layer_rows = []
@@ -742,6 +860,7 @@ def save_detail_outputs(
     pd.DataFrame(flavor_layer_rows).to_csv(out / "stoner_flavor_layers.csv", index=False)
     np.savez(
         out / "full_band_stoner_cache.npz",
+        **hamiltonian_npz_metadata(ham_K),
         kpts=kpts,
         weights=weights,
         U_scf_meV=scf.U_meV,
@@ -752,30 +871,33 @@ def save_detail_outputs(
         evecs_K=evecs_K,
         evecs_Kp=evecs_Kp,
         n_layer_cm2=scf.n_layer_cm2,
+        scf_layer_dos=np.array([row[f"scf_layer_dos_L{i}"] for i in range(1, 4 + 1)]),
         stoner_n_layer_cm2=stoner_n_layer_cm2,
         stoner_layer_dos=stoner_layer_dos,
         stoner_flavor_n_layer_cm2=stoner_flavor_n_layer_cm2,
         stoner_flavor_layer_dos=stoner_flavor_layer_dos,
         nu_f=stoner.nu_f,
         mu_f_meV=stoner_mu_by_flavor(stoner, tables),
+        stoner_dos_valid=bool(row["stoner_dos_valid"]),
+        stoner_mu_common_meV=row["stoner_mu_common_meV"],
+        stoner_self_energy_f_meV=np.asarray(stoner.mean_field_fermi_level["self_energy_f_meV"]),
+        stoner_mu_convention=row["stoner_mu_convention"],
     )
 
-    plot_layer_profile(scf.U_meV, scf.n_layer_cm2, out=str(out / "layer_profile.png"))
     plot_layer_profile(scf.U_meV, stoner_n_layer_cm2, out=str(out / "stoner_layer_profile.png"))
-    save_layer_dos_bars(out, stoner_layer_dos)
+    if row["stoner_dos_valid"]:
+        save_layer_dos_bars(out, stoner_layer_dos)
     save_flavor_layer_bars(out, stoner_flavor_n_layer_cm2, r"$n_l$ (cm$^{-2}$)", "stoner_flavor_layer_profile.png")
-    save_flavor_layer_bars(out, stoner_flavor_layer_dos, r"DOS (A$^{-2}$ meV$^{-1}$)", "stoner_flavor_layer_dos.png")
+    if row["stoner_dos_valid"]:
+        save_flavor_layer_bars(out, stoner_flavor_layer_dos, r"DOS (A$^{-2}$ meV$^{-1}$)", "stoner_flavor_layer_dos.png")
     save_flavor_occupations(out, stoner.nu_f)
+    if not row["stoner_dos_valid"]:
+        return
     mu_f = stoner_mu_by_flavor(stoner, tables)
     full_mu = float(row["full_mu_meV"])
-    save_dos_figure(out, evals_K, evals_Kp, weights, full_mu, mu_f, args)
-
-    dist_K, bands_K, ticks_K, labels_K = compute_full_bands_along_path(ham_K, scf.U_meV, points_per_segment=args.points_per_segment)
-    dist_Kp, bands_Kp, ticks_Kp, labels_Kp = compute_full_bands_along_path(ham_Kp, scf.U_meV, points_per_segment=args.points_per_segment)
-    np.savez(out / "full_bands_K.npz", dist=dist_K, bands=bands_K, ticks=ticks_K, labels=labels_K, mu_meV=full_mu)
-    np.savez(out / "full_bands_Kp.npz", dist=dist_Kp, bands=bands_Kp, ticks=ticks_Kp, labels=labels_Kp, mu_meV=full_mu)
-    plot_bands(dist_K, bands_K, ticks_K, labels_K, mu_meV=full_mu, n_show=args.n_show_full, title="Full bands K at SCF U", out=str(out / "full_bands_K.png"))
-    plot_bands(dist_Kp, bands_Kp, ticks_Kp, labels_Kp, mu_meV=full_mu, n_show=args.n_show_full, title="Full bands K' at SCF U", out=str(out / "full_bands_Kp.png"))
+    save_dos_figure(out, evals_K, evals_Kp, weights, full_mu, mu_f, args, ham_K, dos_data=detail_data["dos"])
+    dist_K, bands_K, ticks_K, labels_K = detail_data["bands"][0]
+    _, bands_Kp, _, _ = detail_data["bands"][1]
     save_stoner_flavor_bands(out, dist_K, bands_K, bands_Kp, ticks_K, labels_K, mu_f, args.n_show_full)
     save_full_band_contours(
         out,
@@ -788,11 +910,12 @@ def save_detail_outputs(
         evals_Kp,
         full_mu,
         mu_f,
+        contour_data=detail_data["contours"],
     )
 
 
 def parse_args() -> argparse.Namespace:
-    ap = argparse.ArgumentParser(description="Run projected/full SCF then full-band four-flavor Stoner at one n-D point.")
+    ap = argparse.ArgumentParser(description="Run full self-consistent Hartree then full-band four-flavor Stoner at one n-D point.")
     add_hamiltonian_args(ap)
     add_full_scf_args(ap)
     add_stoner_args(ap)
@@ -801,13 +924,14 @@ def parse_args() -> argparse.Namespace:
     return ap.parse_args()
 
 
-def main() -> None:
+def main() -> int:
     args = parse_args()
     out = Path(args.out)
     row = run_point({"n_cm2": args.n_cm2, "D_Vnm": args.D_Vnm, "label": "single_point"}, args, detail_dir=out)
     write_json(out / "run_summary.json", row)
     print(json.dumps(row, indent=2))
+    return 1 if row.get("status") == "failed" or not row.get("stoner_dos_valid", False) else 0
 
 
 if __name__ == "__main__":
-    main()
+    raise SystemExit(main())

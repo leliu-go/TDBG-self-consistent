@@ -1,0 +1,20 @@
+{
+  "method": "stoner",
+  "shared": {
+    "nu_grid": [0.0, 1.0, 2.0],
+    "D_Vnm_grid": [0.0],
+    "output_dir": "outputs/correlated_example"
+  },
+  "hamiltonian": {"theta_deg": 1.35, "cutoff": 1},
+  "grid": {"n1": 9, "n2": 9},
+  "full_scf": {
+    "kBT_meV": 0.2,
+    "eps_perp": 3.0,
+    "D_sign": -1.0,
+    "max_iter": 60,
+    "tol_meV": 0.0001,
+    "mixer": "anderson",
+    "mixer_kwargs": {"beta": 0.5, "memory": 6, "fallback_alpha": 0.06}
+  },
+  "stoner": {"u0_meV_A2": 79000.0, "JH_meV_A2": 24000.0, "n_random_seeds": 20}
+}
