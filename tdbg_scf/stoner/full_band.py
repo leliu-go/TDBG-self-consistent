@@ -69,40 +69,6 @@ def build_full_band_flavor_tables(
     return [table_K, table_Kp, table_K, table_Kp]
 
 
-def restrict_tables_to_carrier_sector(tables: list[FlavorBandTable], nu_total: float) -> list[FlavorBandTable]:
-    """Restrict signed full-band tables to the carrier sector being doped.
-
-    Positive total filling means added electrons only, so each flavor is
-    constrained to ``[0, nu_max]``. Negative total filling means added holes
-    only, so each flavor is constrained to ``[nu_min, 0]``. This prevents
-    unphysical compensated electron-hole pair creation across flavors.
-    """
-
-    restricted = []
-    for table in tables:
-        if nu_total > 0.0:
-            nu_min = max(0.0, float(table.nu_min))
-            nu_max = float(table.nu_max)
-        elif nu_total < 0.0:
-            nu_min = float(table.nu_min)
-            nu_max = min(0.0, float(table.nu_max))
-        else:
-            nu_min = 0.0
-            nu_max = 0.0
-        if nu_min > nu_max + 1e-12:
-            raise ValueError("carrier-sector restriction leaves no available states")
-        restricted.append(
-            FlavorBandTable(
-                nu_grid=table.nu_grid,
-                energy_grid_meV=table.energy_grid_meV,
-                kinetic_grid_meV=table.kinetic_grid_meV,
-                nu_min=nu_min,
-                nu_max=nu_max,
-            )
-        )
-    return restricted
-
-
 def density_cm2_to_nu_total(n_cm2: float, A_M_A2: float) -> float:
     return density_cm2_to_filling(float(n_cm2), float(A_M_A2))
 
@@ -120,7 +86,7 @@ def stoner_mean_field_fermi_level(result, tables, params, A_M_A2,
 
     Sigma_f is the unconstrained derivative of the interaction energy.
     Intersect K'_f(nu_f)+Sigma_f using the full physical spectral intervals,
-    not the one-sided carrier-sector optimization normal cones. No filling
+    not the optimization-bound normal cones. No filling
     or energy is changed. An empty intersection cannot certify physical DOS.
     """
     check = stoner_stationarity_intervals(result.nu_f, tables, params, A_M_A2, mu_tolerance_meV)
@@ -136,7 +102,8 @@ def stoner_mean_field_fermi_level(result, tables, params, A_M_A2,
         common, mu_f = float("nan"), np.full(4, np.nan)
     return {**check, "valid": valid, "mu_common_meV": float(common), "mu_f_meV": mu_f.tolist(),
             "reason": ("ok" if valid else "optimizer_kkt_mismatch" if not optimization_valid
-                       else "carrier_constraint_incompatible"),
+                       else "filling_bound_limited" if check["filling_bound_limited"]
+                       else "occupation_intervals_incompatible"),
             "convention": "common_mean_field_fermi_level_with_constant_flavor_shifts"}
 
 
@@ -328,6 +295,7 @@ def stoner_result_to_dict(result, tables: list[FlavorBandTable]) -> dict:
     return {
         "nu_total": float(result.nu_total),
         "nu_f": result.nu_f.tolist(),
+        "flavor_bounds_nu": result.flavor_bounds_nu,
         "mu_f_meV": mu_f.tolist(),
         "mean_field_fermi_level": getattr(result, "mean_field_fermi_level", None),
         "mu_convention": ("common_mean_field_fermi_level_with_constant_flavor_shifts"

@@ -7,7 +7,7 @@ from tdbg_scf.stoner.dos import FlavorBandTable, build_flavor_band_table
 from tdbg_scf.stoner.full_band import (
     build_neutrality_referenced_band_table, build_full_band_flavor_tables,
     explicit_flavor_dos_at_mu, layer_filling_from_nu,
-    restrict_tables_to_carrier_sector, stoner_mu_by_flavor,
+    stoner_mu_by_flavor,
 )
 from tdbg_scf.stoner.params import StonerParams
 from tdbg_scf.stoner.solver import solve_stoner_fixed_nu
@@ -57,10 +57,10 @@ def test_signed_table_mu_matches_the_kinetic_slope_or_gap_interval(nu, expected)
         assert table.mu_of_nu(nu) == pytest.approx(derivative)
 
 
-def test_carrier_restriction_retains_the_neutral_gap_mu_interval():
+def test_signed_tables_retain_the_neutral_gap_mu_interval():
     table = build_neutrality_referenced_band_table(np.array([[-10.,10.]]), np.ones(1), 1.)
     for nu in (-1.,0.,1.):
-        restricted = restrict_tables_to_carrier_sector([table]*4, nu)
+        restricted = [table]*4
         assert restricted[0].mu_of_nu(0.) == pytest.approx(0.)
 
 

@@ -21,3 +21,11 @@ def filling_to_density_cm2(nu: float, A_M_A2: float) -> float:
 
 def density_cm2_to_filling(n_cm2: float, A_M_A2: float) -> float:
     return float(n_cm2) * 1.0e-16 * float(A_M_A2)
+
+
+def moire_cell_area_A2_from_geometry(geom) -> float:
+    """Real-space moire cell dual to the Hamiltonian reciprocal cell."""
+    reciprocal_area = float(geom.mBZ_area_A2_inv)
+    if not np.isfinite(reciprocal_area) or reciprocal_area <= 0:
+        raise ValueError("moire reciprocal cell area must be finite and positive")
+    return (2 * np.pi)**2 / reciprocal_area

@@ -4,7 +4,7 @@ from types import SimpleNamespace
 import numpy as np
 import pytest
 
-from tdbg_scf.stoner.full_band import build_neutrality_referenced_band_table, restrict_tables_to_carrier_sector
+from tdbg_scf.stoner.full_band import build_neutrality_referenced_band_table
 from tdbg_scf.stoner.params import StonerParams
 from tdbg_scf.stoner.solver import StonerResult, solve_stoner_fixed_nu
 
@@ -20,7 +20,7 @@ def _table(energies):
 
 def test_candidate_selection_rejects_successful_nonstationary_lower_energy(monkeypatch):
     table = _table([-100., -50., 0., 10.])
-    tables = restrict_tables_to_carrier_sector([table]*4, 1.2)
+    tables = [table]*4
     params = StonerParams(u0_meV_A2=9., n_random_seeds=0)
     bad, good = np.array([1.001, .199, 0., 0.]), np.array([1.2, 0., 0., 0.])
     outputs = iter([bad])
@@ -38,7 +38,7 @@ def test_gapped_flavors_share_the_partially_filled_flavors_fermi_level():
     from tdbg_scf.stoner.full_band import stoner_mean_field_fermi_level
     table = _table([-100., -50., 0., 10.])
     result = _result([1., .2, 0., 0.])
-    tables = restrict_tables_to_carrier_sector([table]*4, result.nu_total)
+    tables = [table]*4
     level = stoner_mean_field_fermi_level(result, tables, StonerParams(u0_meV_A2=9.), 1.)
     assert level["valid"] and level["optimization_valid"]
     assert level["mu_common_meV"] == pytest.approx(9.)
@@ -52,7 +52,7 @@ def test_common_mu_and_flavor_shifts_obey_particle_hole_reflection():
     levels = []
     for table, filling in ((_table([-100., -50., 0., 10.]), values),
                            (_table([-10., 0., 50., 100.]), -values)):
-        tables = restrict_tables_to_carrier_sector([table]*4, float(filling.sum()))
+        tables = [table]*4
         levels.append(stoner_mean_field_fermi_level(_result(filling), tables, StonerParams(u0_meV_A2=9.), 1.))
     assert all(level["valid"] for level in levels)
     assert levels[1]["mu_common_meV"] == pytest.approx(-levels[0]["mu_common_meV"])
@@ -73,13 +73,13 @@ def test_mean_field_self_energy_matches_the_interaction_energy_derivative():
     np.testing.assert_allclose(level["self_energy_f_meV"], derivative, atol=1e-10)
 
 
-def test_carrier_constrained_kkt_cannot_manufacture_a_physical_common_mu():
+def test_artificial_bound_kkt_cannot_manufacture_a_physical_common_mu():
     from tdbg_scf.stoner.full_band import stoner_mean_field_fermi_level
     table = _table([-1., 1.])
-    tables = restrict_tables_to_carrier_sector([table]*4, .2)
-    level = stoner_mean_field_fermi_level(_result([.2, 0., 0., 0.]), tables, StonerParams(u0_meV_A2=100.), 1.)
+    tables = [table]*4
+    level = stoner_mean_field_fermi_level(_result([.2, 0., 0., 0.]), tables, StonerParams(u0_meV_A2=100., flavor_nu_min=0., flavor_nu_max=1.), 1.)
     assert level["optimization_valid"] and not level["valid"]
-    assert level["reason"] == "carrier_constraint_incompatible"
+    assert level["reason"] == "filling_bound_limited"
     assert np.isnan(level["mu_common_meV"]) and np.isnan(level["mu_f_meV"]).all()
 
 
@@ -87,7 +87,7 @@ def test_finite_q_reference_accepts_a_common_mu_inside_flavor_gaps():
     from tdbg_scf.susceptibility.stoner_reference import make_stoner_reference
     table = _table([-100., -50., 0., 10.])
     result = _result([1., .2, 0., 0.])
-    tables = restrict_tables_to_carrier_sector([table]*4, result.nu_total)
+    tables = [table]*4
     ref = make_stoner_reference(result, tables, StonerParams(u0_meV_A2=9.), 1.)
     assert ref.reference_valid
     assert ref.mu_eq_meV == pytest.approx(9.)

@@ -1,56 +1,87 @@
-# Windows PowerShell: full Hartree followed by Stoner
+# Windows PowerShell: signed Stoner and resumable full-Hartree maps
 
-Run in the repository root. The original model is four-layer ABBA. All bands of the chosen cutoff N are included in every Hartree iteration. Projection controls have been removed.
+The model remains four-layer AB-BA (ABBA) TDBG. Every Hartree iteration uses the full continuum Hamiltonian of the chosen cutoff. The Stoner search now permits electron and hole flavors simultaneously, with conserved total filling:
 
-## Deploy
+\[
+-2\leq\nu_f\leq2,\qquad\sum_{f=1}^4\nu_f=\nu.
+\]
 
-```powershell
-git clone https://github.com/leliu-go/TDBG-self-consistent.git
-cd TDBG-self-consistent
-python -m pip install -r requirements.txt
+The search window intersects actual spectrum capacity; it does not truncate the full-band kinetic tables or introduce an active-band projection. Bounds are configurable with `-StonerFlavorNuMin` and `-StonerFlavorNuMax` (Python: `--stoner-flavor-nu-min`, `--stoner-flavor-nu-max`).
 
-$env:OMP_NUM_THREADS="1"
-$env:OPENBLAS_NUM_THREADS="1"
-$env:MKL_NUM_THREADS="1"
-$env:NUMEXPR_NUM_THREADS="1"
-```
+## Update and create the environment
 
-For an existing checkout, use `git pull --ff-only origin master` before running.
-
-## One point
+From the existing server checkout:
 
 ```powershell
-python -u examples\run_full_band_stoner.py `
-  --theta-deg 1.35 --cutoff 2 `
-  --n-cm2 0 --D-Vnm 0 `
-  --grid-n1 48 --grid-n2 48 `
-  --kBT-meV 0.2 --eps-perp 4 --D-sign=-1 `
-  --full-max-iter 100 --full-tol-meV 1e-4 `
-  --mixer anderson --alpha 0.06 --anderson-beta 0.5 --anderson-memory 6 `
-  --u0-meV-A2 7.9e4 --JH-meV-A2 2.4e4 `
-  --out outputs\full_hartree_single
+Set-Location D:\LeLiu\code\TDBG-self-consistent
+git pull --ff-only origin master
+powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\setup_venv_windows.ps1
 ```
 
-## n-D map
+The setup script uses the existing 64-bit Python at `C:\Users\liule\AppData\Local\Programs\Python\Python38\python.exe`, creates `.venv` and installs pinned dependencies. If Python is elsewhere, pass `-PythonBin 'C:\path\to\python.exe'`. The environment is created on the server and excluded from Git. The launcher automatically uses `.venv\Scripts\python.exe` and limits BLAS to one thread per worker.
 
-The example below retains the original server density range. Change the grid, angle and output directory as required.
+## Start a scan
 
 ```powershell
-python -u examples\run_nd_mapping_full_band_stoner.py `
-  --theta-deg 1.35 --cutoff 2 `
-  --n-min-cm2=-6e12 --n-max-cm2 6e12 --n-count 121 `
-  --D-min-Vnm=-1.2 --D-max-Vnm 1.2 --D-count 121 `
-  --grid-n1 48 --grid-n2 48 `
-  --kBT-meV 0.2 --eps-perp 4 --d-layer-nm 0.335 --D-sign=-1 `
-  --full-max-iter 100 --full-tol-meV 1e-4 `
-  --mixer anderson --alpha 0.06 --anderson-beta 0.5 --anderson-memory 6 `
-  --u0-meV-A2 7.9e4 --JH-meV-A2 2.4e4 `
-  --max-workers 40 `
-  --out outputs\ndmap_full_hartree
+powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\run_ndmap_windows.ps1 -Workers 20
 ```
 
-`scf/nd_map.csv` and `scf/nd_map_scalars.npz` save pure Hartree DOS, layer DOS, layer density, polarization and convergence diagnostics. Main `nd_map.csv` additionally contains Stoner quantities. Detail points also contain both stages' band/DOS figures and caches. No second Hartree calculation is run to export the pure stage.
+PowerShell defaults: theta=1.35 degrees, N=2, 36x36 k mesh, total nu=-6...6 at 61 points, D=-0.8...0.8 V/nm at 41 points and 10 detailed points. The filling grid includes nu=0,+/-4. Density uses the current twist-angle moire area, `n_cm2=nu*1e16/A_M_A2`, including all four flavors. The Hamiltonian, Z=15 meV, U0=79000 meV A^2, JH=24000 meV A^2 and eps_perp=3 retain native TDBG physical defaults. The Hartree iteration limit is 100; pass `-EpsPerp 4` to reproduce the earlier server examples' explicitly selected screening value.
 
-Check `run_summary.json`, failed rows and `stoner_dos_valid`. A failed Hartree stage does not generate physical analysis. A valid Hartree stage is retained if Stoner fails. An optimum that lacks a common interacting Fermi level retains occupation/energy data, but its Stoner spectral fields are NaN. The command exits nonzero if points fail or spectral validation fails.
+For another angle or worker count:
 
-Full Hartree is more expensive than the retired fixed eight-band approximation because each iteration rediagonalizes the full Hamiltonian. Use a small run first and verify cutoff/k-mesh convergence for the final physical quantities.
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\run_ndmap_windows.ps1 -ThetaDeg 1.2 -Workers 40
+```
+
+`-Preview` prints arguments and RAM estimates without computing. `-Out 'D:\path\to\new_run'` selects an exact directory. A new run refuses to overwrite an existing result directory.
+
+Default result layout:
+
+```text
+D:\LeLiu\data\tdbg_self_consistent\ABBA_theta1p35_N2_ndmap_<timestamp>\
+```
+
+Startup displays `Results:` and a locally calibrated ETA range. Each returned point displays completed/total count, elapsed time, remaining time and expected finish time (UTC+8). ETA uses successful point timings; rapid failures do not imply the calculation is nearly complete.
+
+## Resume after interruption
+
+Use the exact original directory printed as `Results:`:
+
+```powershell
+$run = 'D:\LeLiu\data\tdbg_self_consistent\ABBA_theta1p35_N2_ndmap_<original_timestamp>'
+powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\run_ndmap_windows.ps1 -Resume -Out $run -Workers 20
+```
+
+Replace `<original_timestamp>` with the actual folder name. Original Hamiltonian, angle, mesh, axes, Hartree and Stoner parameters are restored automatically. Verified completed points are skipped. Missing, failed, damaged or incomplete points are computed again. An interrupted point restarts from its beginning, rather than resuming individual SCF iterations.
+
+Worker count and live-image interval may change on resume. Scientific parameters, flavor bounds and Python source must match the original scan; incompatible resume requests stop before replacing data. An OS lock prevents concurrent writers and releases after process death.
+
+Each worker writes a flushed, atomic checkpoint **before** returning. A scan manifest, per-point checksums and selected-detail checksums protect recovery. Attempt IDs prevent workers left from a previous process from overwriting a resumed scan. Runs made before checkpoint support cannot recover ordinary points that existed only in RAM.
+
+## Saved and live results
+
+After each returned point, these files are atomically replaced:
+
+- `nd_map.csv`, `nd_map.json`, `nd_map_scalars.npz`: full-size axes, scalar maps and validity masks.
+- `scf/nd_map.csv`, `scf/nd_map.json`, `scf/nd_map_scalars.npz`: pure Hartree DOS, layer DOS, densities, polarization, potentials and convergence diagnostics.
+- `run_summary.json`: timing, progress, failures and bound-limited Stoner counts.
+- `nd_map_live.png`: Hartree/Stoner DOS and polarization preview, refreshed when points return and the 30-second interval has elapsed, plus final completion.
+
+`-LivePlotIntervalSeconds 0` disables the live image; scalar data still update every point. Uncomputed cells have `status=pending`, NaN scalar values and false validity masks. They are never represented as zero DOS or zero polarization. Full per-observable figures are written at completion or handled interruption. Detailed band/DOS/layer-DOS/contour outputs are saved only at the selected 10 points. Full eigenvectors stay in RAM. Live snapshots overwrite their preceding versions, so a complete map is not accumulated for every point.
+
+A valid Hartree stage is retained if Stoner fails, including when a resumed retry suffers process-transport failure before writing any replacement. Stoner DOS requires a physical common interacting chemical potential, independently of artificial filling-bound normal cones. If the user window clips the state and prevents a common chemical potential, `stoner_filling_bound_limited=true`; the reason is saved and spectral observables remain NaN. Hitting a bound alone does not invalidate a genuine common chemical potential.
+
+## Direct Python
+
+Existing explicit density inputs remain supported. Choose either `--n-*` or `--nu-*` scan inputs. The direct Python map driver retains D=-1.2...1.2/121 and the existing Hartree defaults; PowerShell explicitly supplies the server defaults above.
+
+```powershell
+.\.venv\Scripts\python.exe -u examples\run_nd_mapping_full_band_stoner.py --theta-deg 1.35 --cutoff 2 --nu-min=-6 --nu-max=6 --nu-count 61 --D-min-Vnm=-0.8 --D-max-Vnm=0.8 --D-count 41 --grid-n1 36 --grid-n2 36 --max-workers 20 --detail-count 10
+```
+
+Single point:
+
+```powershell
+.\.venv\Scripts\python.exe -u examples\run_full_band_stoner.py --theta-deg 1.35 --cutoff 2 --n-cm2 0 --D-Vnm 0 --grid-n1 36 --grid-n2 36 --kBT-meV 0.2 --eps-perp 3 --full-max-iter 100 --stoner-flavor-nu-min=-2 --stoner-flavor-nu-max=2 --out outputs\full_hartree_single
+```

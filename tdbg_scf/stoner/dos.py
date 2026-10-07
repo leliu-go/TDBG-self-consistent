@@ -50,7 +50,7 @@ class FlavorBandTable:
         return float(.5 * (lo + hi))
 
     def mu_interval_of_nu(self, nu: float, node_tolerance: float = 0.) -> tuple[float, float]:
-        """Physical T=0 subgradient of K, before carrier-sector constraints.
+        """Physical T=0 subgradient of K, before optimization-window constraints.
 
         A partly occupied level fixes mu; at a filled-state node any mu in
         the neighboring gap produces that filling. Restricted optimization
@@ -90,6 +90,23 @@ class FlavorBandTable:
         if not np.isfinite(value) or value < self.nu_min - 1e-12 or value > self.nu_max + 1e-12:
             raise ValueError(f"nu={value} outside [{self.nu_min}, {self.nu_max}]")
         return float(np.interp(value, self.nu_grid, self.kinetic_grid_meV))
+
+
+def flavor_filling_bounds(tables, nu_min: float, nu_max: float) -> list[tuple[float, float]]:
+    """Intersect a finite per-flavor search window with spectral capacity.
+
+    Do not truncate the kinetic tables: common-mu validation still needs
+    the physical states on both sides of an artificial search boundary.
+    """
+    if len(tables) != 4:
+        raise ValueError("Need exactly four flavor DOS tables")
+    if not np.isfinite([nu_min, nu_max]).all() or nu_min >= nu_max:
+        raise ValueError("flavor filling bounds must be finite and ordered")
+    bounds = [(max(float(table.nu_min), float(nu_min)),
+               min(float(table.nu_max), float(nu_max))) for table in tables]
+    if any(lo > hi for lo, hi in bounds):
+        raise ValueError("flavor filling bounds have no available band capacity")
+    return bounds
 
 
 def _sorted_weighted_states(energies_meV, weights, A_M_A2, energy_zero_meV=0.0):

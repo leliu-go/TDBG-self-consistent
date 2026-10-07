@@ -1,0 +1,5 @@
+# Reproducible versions with CPython 3.8 Windows x64 wheels.
+numpy==1.24.4
+scipy==1.10.1
+matplotlib==3.7.5
+pandas==2.0.3

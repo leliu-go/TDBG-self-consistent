@@ -5,7 +5,7 @@ import numpy as np
 from functools import lru_cache
 from itertools import product
 
-from .dos import FlavorBandTable
+from .dos import FlavorBandTable, flavor_filling_bounds
 from .params import StonerParams
 
 
@@ -49,18 +49,19 @@ def _redistribution_directions(u: float, J: float) -> tuple:
     return tuple(tuple(direction) for direction in directions)
 
 
-def _local_kinetic_pieces(values, tables):
-    """One-sided kinetic slopes and nearest nodes, including carrier bounds."""
+def _local_kinetic_pieces(values, tables, params):
+    """One-sided kinetic slopes and nearest nodes, including the finite flavor search window."""
     slopes, endpoints = np.zeros((4, 2)), np.repeat(values[:, None], 2, axis=1)
-    for f, (table, value) in enumerate(zip(tables, values)):
+    bounds = flavor_filling_bounds(tables, params.flavor_nu_min, params.flavor_nu_max)
+    for f, (table, value, (lower, upper)) in enumerate(zip(tables, values, bounds)):
         grid, kinetic = table.nu_grid, table.kinetic_grid_meV
         left = int(np.searchsorted(grid, value, side="left"))-1
         right = int(np.searchsorted(grid, value, side="right"))-1
-        if value > table.nu_min and left >= 0:
-            endpoints[f, 0] = max(float(grid[left]), table.nu_min)
+        if value > lower and left >= 0:
+            endpoints[f, 0] = max(float(grid[left]), lower)
             slopes[f, 0] = (kinetic[left+1]-kinetic[left])/(grid[left+1]-grid[left])
-        if value < table.nu_max and right < len(grid)-1:
-            endpoints[f, 1] = min(float(grid[right+1]), table.nu_max)
+        if value < upper and right < len(grid)-1:
+            endpoints[f, 1] = min(float(grid[right+1]), upper)
             slopes[f, 1] = (kinetic[right+1]-kinetic[right])/(grid[right+1]-grid[right])
     return slopes, endpoints
 
@@ -68,7 +69,7 @@ def _local_kinetic_pieces(values, tables):
 def stoner_feasible_descent(nu_f, tables, params, A_M_A2):
     """Choose an exact quadratic step among redistribution directions.
 
-    Each segment ends at its first kinetic node or carrier bound.
+    Each segment ends at its first kinetic node or flavor bound.
     Kinetic slopes are constant on each signed segment, so its total energy
     is an exact quadratic. Test its endpoints and, for positive curvature,
     its interior stationary point. Coupled Hund directions supplement pair
@@ -81,7 +82,7 @@ def stoner_feasible_descent(nu_f, tables, params, A_M_A2):
     sigma = u*(np.sum(values)-values)+J*np.array([-m_Kp, -m_K, m_Kp, m_K])
     spin_K, spin_Kp = np.array([1., 0., -1., 0.]), np.array([0., 1., 0., -1.])
     H = u*(np.ones((4, 4))-np.eye(4))-J*(np.outer(spin_K, spin_Kp)+np.outer(spin_Kp, spin_K))
-    slopes, endpoints = _local_kinetic_pieces(values, tables)
+    slopes, endpoints = _local_kinetic_pieces(values, tables, params)
     room = np.abs(endpoints-values[:, None])
     baseline = stoner_energy_meV_per_cell(values, tables, params, A_M_A2)
     best_gain, best_probe = 0., None
@@ -135,7 +136,7 @@ def stoner_local_stability(nu_f, tables, params, A_M_A2) -> dict:
     sigma = u*(np.sum(values)-values)+J*np.array([-m_Kp, -m_K, m_Kp, m_K])
     spin_K, spin_Kp = np.array([1., 0., -1., 0.]), np.array([0., 1., 0., -1.])
     H = u*(np.ones((4, 4))-np.eye(4))-J*(np.outer(spin_K, spin_Kp)+np.outer(spin_Kp, spin_K))
-    slopes, endpoints = _local_kinetic_pieces(values, tables)
+    slopes, endpoints = _local_kinetic_pieces(values, tables, params)
     room = np.abs(endpoints-values[:, None])
     baseline = stoner_energy_meV_per_cell(values, tables, params, A_M_A2)
     best_gain, best_probe, probe_count = 0., None, 0
@@ -189,22 +190,37 @@ def stoner_stationarity_intervals(nu_f, tables, params, A_M_A2,
     # (also capped at 1% of a state interval by the table), and record this
     # occupation precision separately from the exact total-filling check.
     filling_tolerance = 1e-6
+    bounds = flavor_filling_bounds(tables, params.flavor_nu_min, params.flavor_nu_max)
     intervals = np.asarray([table.mu_interval_of_nu(value,node_tolerance=filling_tolerance)
                             for table,value in zip(tables,values)]) + sigma[:,None]
     constrained = intervals.copy()
-    for f,(table,value) in enumerate(zip(tables,values)):
-        if abs(value-table.nu_min) <= filling_tolerance:
+    hits, artificial_hits = [], []
+    for f,(table,value,(lower,upper)) in enumerate(zip(tables,values,bounds)):
+        lower_hit = abs(value-lower) <= filling_tolerance
+        upper_hit = abs(value-upper) <= filling_tolerance
+        hits.append(bool(lower_hit or upper_hit))
+        artificial_hits.append(bool((lower_hit and lower > table.nu_min + filling_tolerance)
+                                    or (upper_hit and upper < table.nu_max - filling_tolerance)))
+        if lower_hit:
             constrained[f,0] = -np.inf
-        if abs(value-table.nu_max) <= filling_tolerance:
+        if upper_hit:
             constrained[f,1] = np.inf
     constraint_mismatch = max(0.,float(np.max(constrained[:,0])-np.min(constrained[:,1])))
     lo,hi = float(np.max(intervals[:,0])),float(np.min(intervals[:,1]))
     mismatch = max(0.,lo-hi)
     finite = bool(np.isfinite(sigma).all())
+    feasible = bool(all(lower-1e-8 <= value <= upper+1e-8
+                        for value,(lower,upper) in zip(values,bounds)))
+    physical_valid = finite and feasible and mismatch <= mu_tolerance_meV
     return {"self_energy_f_meV": sigma.tolist(),
-            "optimization_valid": finite and constraint_mismatch <= mu_tolerance_meV,
+            "optimization_valid": finite and feasible and constraint_mismatch <= mu_tolerance_meV,
             "constraint_mismatch_meV": constraint_mismatch,
-            "physical_valid": finite and mismatch <= mu_tolerance_meV,
+            "physical_valid": physical_valid,
+            "filling_domain": "signed_bounded_full_spectrum",
+            "flavor_bounds_nu": [[lo,hi] for lo,hi in bounds],
+            "filling_bound_hit_f": hits, "filling_bound_hit": any(hits),
+            "artificial_bound_hit_f": artificial_hits, "artificial_bound_hit": any(artificial_hits),
+            "filling_bound_limited": any(artificial_hits) and not physical_valid,
             "filling_tolerance_nu": filling_tolerance,
             "interval_mismatch_meV": mismatch,
             "mu_interval_lower_meV": lo,"mu_interval_upper_meV": hi,

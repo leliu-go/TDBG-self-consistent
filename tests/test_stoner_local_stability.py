@@ -6,7 +6,7 @@ import pytest
 
 from tdbg_scf.stoner.dos import FlavorBandTable, build_flavor_band_table
 from tdbg_scf.stoner.energy import stoner_energy_meV_per_cell
-from tdbg_scf.stoner.full_band import build_neutrality_referenced_band_table, restrict_tables_to_carrier_sector
+from tdbg_scf.stoner.full_band import build_neutrality_referenced_band_table
 from tdbg_scf.stoner.params import StonerParams
 from tdbg_scf.stoner.solver import solve_stoner_fixed_nu
 
@@ -21,7 +21,7 @@ def test_real_slsqp_stationary_quartic_band_saddle_is_rejected():
     conduction = np.diff(nodes**4)/np.diff(nodes)
     energies = np.r_[np.full(1000, -10.), conduction][None]
     table = build_neutrality_referenced_band_table(energies, [.001], 1.)
-    tables = restrict_tables_to_carrier_sector([table]*4, 1.002)
+    tables = [table]*4
     params = StonerParams(u0_meV_A2=.9, max_iter=2, n_random_seeds=0)
     result = solve_stoner_fixed_nu(1.002, tables, params, 1.)
     candidate = next(item for item in result.local_minima if item["seed_name"] == "paramagnetic:slsqp")

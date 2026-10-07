@@ -40,7 +40,6 @@ from tdbg_scf.stoner.full_band import (
     explicit_flavor_dos_at_mu,
     layer_polarizations,
     layer_dos_at_mu_gaussian,
-    restrict_tables_to_carrier_sector,
     stoner_flavor_layer_dos_at_mu,
     stoner_flavor_layer_fillings,
     stoner_mu_by_flavor,
@@ -102,6 +101,8 @@ def add_stoner_args(ap: argparse.ArgumentParser) -> None:
     ap.add_argument("--stoner-tol-energy-meV", type=float, default=1e-8)
     ap.add_argument("--stoner-random-seeds", type=int, default=20)
     ap.add_argument("--stoner-seed", type=int, default=0)
+    ap.add_argument("--stoner-flavor-nu-min", type=float, default=-2.)
+    ap.add_argument("--stoner-flavor-nu-max", type=float, default=2.)
 
 
 def add_analysis_args(ap: argparse.ArgumentParser) -> None:
@@ -147,6 +148,8 @@ def stoner_params_from_args(args: argparse.Namespace) -> StonerParams:
         tol_energy_meV=args.stoner_tol_energy_meV,
         n_random_seeds=args.stoner_random_seeds,
         seed=args.stoner_seed,
+        flavor_nu_min=getattr(args, "stoner_flavor_nu_min", -2.),
+        flavor_nu_max=getattr(args, "stoner_flavor_nu_max", 2.),
     )
 
 
@@ -632,10 +635,7 @@ def run_point(task: dict[str, Any], args: argparse.Namespace, detail_dir: Path |
             detail_data = save_scf_detail_outputs(
                 detail_dir / "scf", row, args, ham_K, ham_Kp, kpts, weights, scf, evals_K, evals_Kp,
             )
-        tables = restrict_tables_to_carrier_sector(
-            build_full_band_flavor_tables(evals_K, evals_Kp, weights, A_M_A2),
-            nu_total,
-        )
+        tables = build_full_band_flavor_tables(evals_K, evals_Kp, weights, A_M_A2)
         stoner_params = stoner_params_from_args(args)
         stoner = solve_stoner_fixed_nu(nu_total, tables, stoner_params, A_M_A2)
         nu_f = np.asarray(stoner.nu_f, dtype=float)
@@ -647,6 +647,8 @@ def run_point(task: dict[str, Any], args: argparse.Namespace, detail_dir: Path |
                     for value, table in zip(nu_f, tables))
         )
         row["stoner_success"] = stoner_valid
+        row.update(stoner_flavor_nu_min=stoner_params.flavor_nu_min,
+                   stoner_flavor_nu_max=stoner_params.flavor_nu_max)
         if detail_dir is not None:
             write_json(detail_dir / "stoner_diagnostics.json", {
                 "accepted": stoner_valid, "optimizer_success": bool(stoner.success),
@@ -672,6 +674,15 @@ def run_point(task: dict[str, Any], args: argparse.Namespace, detail_dir: Path |
             "stoner_mu_constraint_mismatch_meV": fermi_level["constraint_mismatch_meV"],
             "stoner_mu_convention": fermi_level["convention"],
             "stoner_fermi_level_reason": fermi_level["reason"],
+            "stoner_filling_bound_hit": fermi_level["filling_bound_hit"],
+            "stoner_artificial_bound_hit": fermi_level["artificial_bound_hit"],
+            "stoner_filling_bound_limited": fermi_level["filling_bound_limited"],
+            **{f"stoner_{flavor}_nu_min": float(bound[0])
+               for flavor, bound in zip(FLAVOR_NAMES, fermi_level["flavor_bounds_nu"])},
+            **{f"stoner_{flavor}_nu_max": float(bound[1])
+               for flavor, bound in zip(FLAVOR_NAMES, fermi_level["flavor_bounds_nu"])},
+            **{f"stoner_{flavor}_filling_bound_hit": bool(hit)
+               for flavor, hit in zip(FLAVOR_NAMES, fermi_level["filling_bound_hit_f"])},
             **{f"stoner_self_energy_{flavor}_meV": float(value)
                for flavor, value in zip(FLAVOR_NAMES, fermi_level["self_energy_f_meV"])},
         })

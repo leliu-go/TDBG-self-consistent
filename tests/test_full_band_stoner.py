@@ -48,10 +48,9 @@ def test_signed_stoner_minimization_handles_hole_filling():
     assert np.min(result.nu_f) < -0.49
 
 
-def test_carrier_sector_restriction_forbids_compensated_electron_hole_pairs():
+def test_explicit_positive_search_window_can_be_requested():
     from tdbg_scf.stoner.full_band import (
         build_neutrality_referenced_band_table,
-        restrict_tables_to_carrier_sector,
     )
     from tdbg_scf.stoner.params import StonerParams
     from tdbg_scf.stoner.solver import solve_stoner_fixed_nu
@@ -59,11 +58,12 @@ def test_carrier_sector_restriction_forbids_compensated_electron_hole_pairs():
     energies = np.array([[-2.0, 2.0], [-1.0, 3.0]])
     weights = np.array([0.5, 0.5])
     table = build_neutrality_referenced_band_table(energies, weights, A_M_A2=1.0)
-    tables = restrict_tables_to_carrier_sector([table, table, table, table], nu_total=0.5)
+    tables = [table, table, table, table]
     result = solve_stoner_fixed_nu(
         0.5,
         tables,
-        StonerParams(u0_meV_A2=100.0, JH_meV_A2=0.0, n_random_seeds=6, seed=0),
+        StonerParams(u0_meV_A2=100.0, JH_meV_A2=0.0, n_random_seeds=6, seed=0,
+                     flavor_nu_min=0., flavor_nu_max=1.),
         A_M_A2=1.0,
     )
 

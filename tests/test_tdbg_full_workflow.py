@@ -236,7 +236,7 @@ def test_hartree_only_rejected_rerun_removes_previous_physical_outputs(monkeypat
     assert (tmp_path/"user_notes.txt").read_text(encoding="utf-8") == "preserve this"
 
 
-def test_all_failed_map_replaces_old_cache_and_removes_missing_figures(monkeypatch, tmp_path):
+def test_all_failed_map_replaces_old_cache_with_missing_data(monkeypatch, tmp_path):
     import examples.run_nd_mapping_full_band_stoner as script
     from tdbg_scf import TDBGParameters, TDBGContinuumHamiltonian
     (tmp_path/"nd_map_scalars.npz").write_bytes(b"old accepted map")
@@ -246,18 +246,23 @@ def test_all_failed_map_replaces_old_cache_and_removes_missing_figures(monkeypat
     stale.write_bytes(b"old accepted map")
     unrelated = figures/"user_figure.png"
     unrelated.write_bytes(b"preserve this")
-    monkeypatch.setattr(script, "save_scf_map_outputs", lambda *a: None)
+    monkeypatch.setattr(script, "save_scf_map_outputs", lambda *a, **kw: None)
+    plot = script.plot_nd_map
+    monkeypatch.setattr(script, "plot_nd_map", lambda frame, n, d, key, path, title:
+                        plot(frame, n, d, key, path, title) if key == "dos_mu_stoner" else None)
     rows = [{"n_index":0, "D_index":0, "n_cm2":0., "D_Vnm":0.2, "status":"failed"}]
     ham = TDBGContinuumHamiltonian(TDBGParameters(cutoff=0))
     script.save_map_outputs(tmp_path, rows, [0.], [0.2], ham)
     with np.load(tmp_path/"nd_map_scalars.npz", allow_pickle=True) as data:
         assert len(data["rows"]) == 0
         np.testing.assert_array_equal(data["D_values_Vnm"], [0.2])
-    assert not stale.exists()
+        assert np.isnan(data["dos_mu_stoner"]).all()
+        assert not data["point_ok"].any()
+    assert stale.read_bytes().startswith(b"\x89PNG"), "Old accepted figure must be replaced by the current blank map."
     assert unrelated.read_bytes() == b"preserve this"
 
 
-def test_worker_transport_failure_clears_previous_detail_outputs(monkeypatch, tmp_path):
+def test_worker_transport_failure_preserves_worker_owned_detail_outputs(monkeypatch, tmp_path):
     import json
     import examples.run_nd_mapping_full_band_stoner as script
     class BrokenPool:
@@ -269,7 +274,14 @@ def test_worker_transport_failure_clears_previous_detail_outputs(monkeypatch, tm
             return False
         def submit(self, *args):
             raise RuntimeError("controlled worker submission failure")
-    task = script.build_tasks([0.], [0.], 1, 1)[0]
+    monkeypatch.setattr(sys, "argv", ["map", "--cutoff", "0", "--grid-n1", "2", "--grid-n2", "2",
+        "--n-values-cm2=0,1e11", "--D-values-Vnm=0", "--max-workers", "2",
+        "--live-plot-interval-s", "0", "--out", str(tmp_path)])
+    args = script.parse_args()
+    tasks = script.build_tasks([0., 1e11], [0.], args.detail_count)
+    ham = script.TDBGContinuumHamiltonian(script.params_from_args(args, script.scf_valley(args)))
+    script.prepare_manifest(tmp_path, args, script.hamiltonian_metadata(ham), tasks)
+    task = tasks[0]
     detail = tmp_path/"details"/task["label"]
     (detail/"scf").mkdir(parents=True)
     (detail/"full_band_stoner_cache.npz").write_bytes(b"old accepted point")
@@ -277,10 +289,11 @@ def test_worker_transport_failure_clears_previous_detail_outputs(monkeypatch, tm
     (detail/"user_notes.txt").write_text("preserve this")
     monkeypatch.setattr(script, "ProcessPoolExecutor", BrokenPool)
     monkeypatch.setattr(script, "save_map_outputs", lambda *a, **kw: None)
-    monkeypatch.setattr(sys, "argv", ["run_nd_mapping_full_band_stoner.py", "--cutoff", "0",
-        "--n-values-cm2", "0", "--D-values-Vnm", "0", "--max-workers", "2", "--out", str(tmp_path)])
+    monkeypatch.setattr(sys, "argv", ["map", "--resume", "--out", str(tmp_path), "--max-workers", "2"])
     assert script.main() == 1
-    assert not (detail/"full_band_stoner_cache.npz").exists()
-    assert not (detail/"scf"/"spectrum.npz").exists()
-    assert json.loads((detail/"error.json").read_text())["error_stage"] == "worker_transport"
+    assert (detail/"full_band_stoner_cache.npz").read_bytes() == b"old accepted point"
+    assert (detail/"scf"/"spectrum.npz").read_bytes() == b"old accepted point"
+    diagnostics = json.loads((tmp_path/"diagnostics"/("transport_" + task["label"] + ".json")).read_text())
+    assert diagnostics["error_stage"] == "worker_transport" and diagnostics["scf_converged"] is None
+    assert not (detail/"error.json").exists()
     assert (detail/"user_notes.txt").read_text() == "preserve this"

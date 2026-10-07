@@ -19,7 +19,6 @@ from tdbg_scf.scf_checks import require_converged_scf
 from tdbg_scf.stoner.full_band import (
     build_full_band_flavor_tables,
     density_cm2_to_nu_total,
-    restrict_tables_to_carrier_sector,
     stoner_result_to_dict,
     stoner_mean_field_fermi_level,
 )
@@ -288,10 +287,7 @@ def solve_full_scf_stoner_state(
     layer_masks = ham_K.layer_projectors_diagonal()
 
     nu_total = density_cm2_to_nu_total(float(n_cm2), A_M_A2)
-    tables = restrict_tables_to_carrier_sector(
-        build_full_band_flavor_tables(evals_K, evals_Kp, weights, A_M_A2),
-        nu_total,
-    )
+    tables = build_full_band_flavor_tables(evals_K, evals_Kp, weights, A_M_A2)
     stoner_params = StonerParams(
         u0_meV_A2=float(stoner_u0_meV_A2),
         JH_meV_A2=float(stoner_JH_meV_A2),

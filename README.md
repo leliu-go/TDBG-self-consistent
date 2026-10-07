@@ -17,6 +17,17 @@ until the finite-Q formulation and diagnostics have been rechecked.
 
 Windows deployment and full Hartree commands: [server_full_hartree_stoner_cli.md](server_full_hartree_stoner_cli.md). Numerical audit: [docs/full_hartree_numerical_audit.md](docs/full_hartree_numerical_audit.md).
 
+The Stoner search uses signed per-flavor fillings with default bounds
+`-2 <= nu_f <= 2` and conserved total filling. Electron and hole flavors can
+coexist, including at neutrality. Physical Stoner DOS still requires a common
+interacting chemical potential; artificially clipped states are flagged.
+
+The full-band n-D map driver saves each completed point before worker return,
+updates missing-aware scalar maps as points finish and supports
+`--resume --out <original_run_directory>`. It displays elapsed time and ETA.
+Windows setup/launch scripts are in `scripts/`; default results go to
+`D:\LeLiu\data\tdbg_self_consistent`. See the deployment document for commands.
+
 ## Code layout
 
 ```text

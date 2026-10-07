@@ -5,7 +5,7 @@ from dataclasses import dataclass
 
 import numpy as np
 
-from .dos import FlavorBandTable
+from .dos import FlavorBandTable, flavor_filling_bounds
 from .energy import (stoner_energy_meV_per_cell, stoner_stationarity_intervals,
                      stoner_local_stability, stoner_feasible_descent)
 from .params import StonerParams
@@ -21,6 +21,7 @@ class StonerResult:
     local_minima: list[dict]
     mu_f_meV: np.ndarray | None = None
     mean_field_fermi_level: dict | None = None
+    flavor_bounds_nu: list[tuple[float, float]] | None = None
 
     def _spin_polarization_signed(self) -> float:
         return float((self.nu_f[0] + self.nu_f[1]) - (self.nu_f[2] + self.nu_f[3]))
@@ -129,8 +130,26 @@ def make_stoner_seeds(nu_total: float, bounds, rng, n_random: int) -> list[tuple
         order = [flavor] + [i for i in range(4) if i != flavor]
         add(f"single_flavor_{flavor}", _fill_order(nu_total, bounds, order))
 
+    # Same-sign starts all collapse to zero at neutrality and miss
+    # compensated phases. Explicitly break spin, valley and spin-valley
+    # symmetry in both directions, including fully polarized corners.
+    center = _clip_to_bounds_and_total(np.full(4, float(nu_total)/4.), bounds, nu_total)
+    patterns = (("spin", [1.,1.,-1.,-1.]), ("valley", [1.,-1.,1.,-1.]),
+                ("spin_valley", [1.,-1.,-1.,1.]))
+    full_scale = max(hi-lo for lo,hi in bounds)
+    for scale in (.5, 1., full_scale):
+        for name, pattern in patterns:
+            for sign in (-1, 1):
+                add(f"compensated_{name}_{sign}_{scale:g}", center+sign*scale*np.asarray(pattern))
+    for flavor in range(4):
+        pattern = np.full(4, -1./3.)
+        pattern[flavor] = 1.
+        for sign in (-1, 1):
+            add(f"compensated_single_{flavor}_{sign}", center+sign*pattern)
+
+    lower, upper = np.asarray(bounds).T
     for index in range(int(n_random)):
-        add(f"random_{index}", rng.dirichlet(np.ones(4)) * float(nu_total))
+        add(f"random_{index}", rng.uniform(lower, upper))
     return seeds
 
 
@@ -145,11 +164,11 @@ def solve_stoner_fixed_nu(
     if not np.isfinite(nu_total) or not np.isfinite(A_M_A2) or A_M_A2 <= 0:
         raise ValueError("nu_total must be finite and A_M_A2 finite and positive")
 
-    bounds = [(table.nu_min, table.nu_max) for table in tables]
+    bounds = flavor_filling_bounds(tables, params.flavor_nu_min, params.flavor_nu_max)
     total_min = sum(lo for lo, _ in bounds)
     total_max = sum(hi for _, hi in bounds)
     if nu_total < total_min - 1e-12 or nu_total > total_max + 1e-12:
-        raise ValueError("nu_total outside available band capacity")
+        raise ValueError("nu_total outside combined flavor filling bounds and band capacity")
 
     rng = np.random.default_rng(params.seed)
     seeds = make_stoner_seeds(nu_total, bounds, rng, params.n_random_seeds)
@@ -270,4 +289,5 @@ def solve_stoner_fixed_nu(
         success=bool(best["success"]),
         seed_name=str(best["seed_name"]),
         local_minima=minima,
+        flavor_bounds_nu=bounds,
     )

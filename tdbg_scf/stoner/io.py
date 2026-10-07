@@ -9,6 +9,7 @@ def result_to_dict(result) -> dict:
     return {
         "nu_total": result.nu_total,
         "nu_f": result.nu_f.tolist(),
+        "flavor_bounds_nu": result.flavor_bounds_nu,
         "energy_meV_per_cell": result.energy_meV_per_cell,
         "success": result.success,
         "seed_name": result.seed_name,

@@ -12,7 +12,7 @@ from ..filling import filling_to_density_cm2, moire_cell_area_A2_from_weights
 from ..lattice import make_uniform_mbz_grid
 from ..scf_checks import require_converged_scf, scf_convergence_diagnostics
 from ..solver_full import FullSCFConfig, FullSCFSolver
-from .full_band import (build_full_band_flavor_tables, restrict_tables_to_carrier_sector,
+from .full_band import (build_full_band_flavor_tables,
                         stoner_mean_field_fermi_level, stoner_result_to_dict)
 from .params import StonerParams
 from .solver import solve_stoner_fixed_nu
@@ -63,7 +63,6 @@ def run_stoner_scan(config) -> list:
                 # Reuse the complete K eigenpairs at the accepted potential.
                 evals_Kp, _ = ham_Kp.diagonalize(kpts, state.U_meV)
                 tables = build_full_band_flavor_tables(state.evals, evals_Kp, weights, A_M_A2)
-                tables = restrict_tables_to_carrier_sector(tables, float(nu))
                 result = solve_stoner_fixed_nu(float(nu), tables, params, A_M_A2)
                 if not result.success:
                     raise RuntimeError(f"Stoner did not converge at nu={nu}, D={D}")
