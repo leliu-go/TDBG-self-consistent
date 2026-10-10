@@ -27,7 +27,7 @@ def initial_runtime_estimate(ham, args, total, workers, *, bands_only=False, reu
     for index in indices:
         kx, ky = kpts[index]
         started = time.perf_counter()
-        np.linalg.eigh(ham.hamiltonian(float(kx), float(ky), np.zeros(4)))
+        np.linalg.eigh(ham.hamiltonian(float(kx), float(ky), np.zeros(len(ham.layer_indices))))
         timings.append(time.perf_counter() - started)
     per_k = max(float(np.median(timings)), 1e-9)
     limit = int(getattr(args, "full_max_iter", getattr(args, "max_iter", 60)))

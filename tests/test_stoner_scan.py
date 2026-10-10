@@ -39,6 +39,15 @@ def test_scan_uses_full_hartree_for_every_filling_and_displacement(tmp_path, mon
     assert any(cfg.target_density_cm2 < 0 for cfg, _ in states)
     records = json.loads((tmp_path/"stoner"/"results.json").read_text())
     assert len(records) == 4
+    from tdbg_scf.stoner.io import result_to_dict
+    from tdbg_scf.stoner.active_polarization import POLARIZATION_FIELDS
+    for result, record in zip(results, records):
+        assert result.active_occupation_record is not None
+        for field in POLARIZATION_FIELDS:
+            assert 0. <= record[field] <= 1.
+            assert result_to_dict(result)[field] == record[field]
+        assert record["active_occupation"]["remote_reference_unchanged"] is True
+        assert "gap_nu0_meV" in record and "stoner_gap_nu_plus1_meV" in record
     assert all(record["scf"]["scf_valid"] for record in records)
     assert {record["D_Vnm"] for record in records} == {0., .02}
     assert not (tmp_path/"stoner"/"error.json").exists()
@@ -74,7 +83,11 @@ def test_scan_stops_before_stoner_when_hartree_is_unconverged(tmp_path, monkeypa
     assert (tmp_path/"stoner"/"user_notes.txt").read_text() == "preserve this"
 
 
-def test_scan_rejects_an_unoptimized_stoner_seed(tmp_path):
+def test_scan_rejects_an_unoptimized_stoner_seed(tmp_path, monkeypatch):
+    from types import SimpleNamespace
+    import numpy as np
+    monkeypatch.setattr("scipy.optimize.differential_evolution", lambda *a, **kw:
+        SimpleNamespace(x=np.full(3,np.nan),success=True,message="invalid",nit=1,nfev=1))
     cfg = small_config(tmp_path)
     cfg["shared"]["nu_grid"], cfg["shared"]["D_Vnm_grid"] = [.5], [0.]
     cfg["stoner"]["max_iter"] = 1

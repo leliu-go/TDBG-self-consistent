@@ -154,14 +154,18 @@ def stoner_local_stability(nu_f, tables, params, A_M_A2) -> dict:
             # Positive one-sided slope makes a true kink/boundary minimum
             # even when the interaction has negative curvature farther away.
             continue
-        limit = float(np.min(distances/np.abs(direction[active])))
+        limits = distances/np.abs(direction[active])
+        limit = float(np.min(limits))
         curvature = float(direction@H@direction)
-        step = .8*limit
-        if curvature > 0.:
-            step = min(step, max(0., -directional_slope/curvature))
+        # Probe the actual segment minimum. An arbitrary fractional probe
+        # can underestimate a resolvable negative-curvature instability.
+        step = limit if curvature <= 0. else min(limit, max(0., -directional_slope/curvature))
         if step <= 0.:
             continue
         probe = values+step*direction
+        if step == limit:
+            limiting = limits == limit
+            probe[active[limiting]] = endpoints[active[limiting], sides[limiting]]
         energy = stoner_energy_meV_per_cell(probe, tables, params, A_M_A2)
         probe_count += 1
         gain = baseline-energy
@@ -185,8 +189,8 @@ def stoner_stationarity_intervals(nu_f, tables, params, A_M_A2,
     u, J = params.u0_meV_A2/A_M_A2, params.JH_meV_A2/A_M_A2
     m_K, m_Kp = values[0]-values[2], values[1]-values[3]
     sigma = u*(np.sum(values)-values) + J*np.array([-m_Kp,-m_K,m_Kp,m_K])
-    # Nonsmooth SLSQP can stop just beside an exact occupation node while
-    # its energy is within ftol. Resolve that node only within 1e-6 filling
+    # A finite search can stop just beside an exact occupation node while
+    # its energy is within tolerance. Resolve that node only within 1e-6 filling
     # (also capped at 1% of a state interval by the table), and record this
     # occupation precision separately from the exact total-filling check.
     filling_tolerance = 1e-6

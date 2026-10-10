@@ -6,16 +6,17 @@ import argparse
 from concurrent.futures import ProcessPoolExecutor, as_completed
 from concurrent.futures.process import BrokenProcessPool
 from dataclasses import asdict
-import traceback
 import json
 import os
 from pathlib import Path
 import sys
 import time
+import traceback
 from typing import Any
 
 for _var in ("OMP_NUM_THREADS", "OPENBLAS_NUM_THREADS", "MKL_NUM_THREADS", "NUMEXPR_NUM_THREADS"):
     os.environ.setdefault(_var, "1")
+os.environ.setdefault("PYTHONFAULTHANDLER", "1")
 
 import matplotlib
 
@@ -36,6 +37,7 @@ from run_full_band_stoner import (
     add_full_scf_args,
     add_hamiltonian_args,
     add_stoner_args,
+    full_scf_config_from_args,
     hamiltonian_metadata,
     hamiltonian_npz_metadata,
     params_from_args,
@@ -46,18 +48,25 @@ from run_full_band_stoner import (
     TDBGContinuumHamiltonian,
     write_json,
 )
+from tdbg_scf.band_gaps import gap_analysis_metadata
+from tdbg_scf.stoner.active_polarization import POLARIZATION_FIELDS
 from tdbg_scf.output_metadata import displacement_metadata
-from tdbg_scf.output_metadata import axis_edges as _axis_edges
+from tdbg_scf.gap_maps import _axis_edges, save_energy_gap_maps, save_stoner_energy_gap_maps
 from tdbg_scf.scf_outputs import scf_point_record, scf_scalar_grids
-
-
 from tdbg_scf.scan_axes import add_density_axis_args, density_axis_metadata, resolve_density_axis
 from tdbg_scf.run_storage import add_output_args, create_output_dir, detail_indices, estimate_storage, explicit_contour_kpoint_count, write_run_config
 from tdbg_scf.run_progress import RunProgress, initial_runtime_estimate
 from tdbg_scf.atomic_io import atomic_csv, atomic_json, atomic_npz, atomic_output
 from tdbg_scf.live_map import CORE_FIELDS, SCF_CORE_FIELDS, LivePreview, complete_rows, scalar_grids
-from tdbg_scf.scan_checkpoint import prepare_manifest, begin_attempt, load_points, save_point, restore_resume_args, scan_directory_lock
-from tdbg_scf.worker_diagnostics import initialize_worker, close_worker_diagnostics, log_worker_event, memory_snapshot, runtime_diagnostics
+from tdbg_scf.scan_checkpoint import (
+    begin_attempt, load_points, prepare_manifest, restore_resume_args, save_point, scan_directory_lock,
+)
+from tdbg_scf.worker_diagnostics import (
+    close_worker_diagnostics, initialize_worker, log_worker_event,
+    memory_snapshot, runtime_diagnostics,
+)
+from tdbg_scf.scf_reuse import restore_scf_reuse_args, attach_saved_scf_references
+from tdbg_scf.stoner_update import prepare_inplace_update
 
 
 def parse_float_list(text: str | None) -> list[float] | None:
@@ -75,6 +84,7 @@ def make_axis_values(explicit: str | None, lo: float, hi: float, count: int) -> 
     if count == 1:
         return [0.5 * (lo + hi)]
     return np.linspace(lo, hi, count).astype(float).tolist()
+
 
 
 def evenly_spaced_indices(count: int, target_count: int) -> set[int]:
@@ -146,8 +156,9 @@ def plot_nd_map(df: pd.DataFrame, n_values: list[float], d_values: list[float], 
     fig, ax = plt.subplots(figsize=(5.6, 4.2))
     n_axis, d_axis = np.asarray(n_values) / 1e12, np.asarray(d_values)
     i_order, j_order = np.argsort(n_axis), np.argsort(d_axis)
+    color_limits = {"vmin": 0., "vmax": 1.} if key in POLARIZATION_FIELDS else {}
     im = ax.pcolormesh(_axis_edges(d_axis[j_order], .05), _axis_edges(n_axis[i_order], .1),
-                       arr[np.ix_(i_order, j_order)], shading="flat")
+                       arr[np.ix_(i_order, j_order)], shading="flat", **color_limits)
     ax.set_xlabel("D (V/nm)")
     ax.set_ylabel(r"$n$ ($10^{12}$ cm$^{-2}$)")
     ax.set_title(title)
@@ -165,7 +176,7 @@ def save_scf_map_outputs(out: Path, rows: list[dict[str, Any]], n_values: list[f
     scf_dir.mkdir(parents=True, exist_ok=True)
     records = [scf_point_record({**displacement_metadata(D_sign), **row}, ham) for row in rows]
     frame = pd.DataFrame(records).sort_values(["n_index", "D_index"], kind="stable")
-    expected_scf_fields = [*SCF_CORE_FIELDS, *[field for layer in range(1, 4 + 1)
+    expected_scf_fields = [*SCF_CORE_FIELDS, *[field for layer in range(1, len(ham.layer_indices) + 1)
                            for field in (f"U{layer}_meV", f"n{layer}_cm2", f"scf_layer_dos_L{layer}")]]
     for key in expected_scf_fields:
         if key not in frame:
@@ -180,6 +191,7 @@ def save_scf_map_outputs(out: Path, rows: list[dict[str, Any]], n_values: list[f
              **displacement_metadata(D_sign), stage="scf_before_stoner",
              **density_axis_metadata(n_values, ham.geom), D_values_Vnm=np.asarray(d_values),
              **grids)
+    save_energy_gap_maps(scf_dir, records, n_values, d_values, ham, D_sign, plot_figures=plot_figures)
     if not plot_figures:
         return
     specs = [
@@ -194,8 +206,9 @@ def save_scf_map_outputs(out: Path, rows: list[dict[str, Any]], n_values: list[f
         ("scf_layer_dos_dipole", "SCF layer DOS dipole scalar"),
         ("scf_residual_meV", "SCF residual (meV)"),
         ("scf_iterations", "SCF iterations"),
+        ("scf_layer_dos_lower_block_fraction", "Lower bilayer DOS / total DOS"),
     ]
-    for layer in range(1, 4 + 1):
+    for layer in range(1, len(ham.layer_indices) + 1):
         specs += [(f"U{layer}_meV", f"SCF layer {layer} electron potential (meV)"),
                   (f"n{layer}_cm2", f"SCF layer {layer} density (cm^-2)"),
                   (f"scf_layer_dos_L{layer}", f"SCF layer {layer} DOS")]
@@ -204,16 +217,17 @@ def save_scf_map_outputs(out: Path, rows: list[dict[str, Any]], n_values: list[f
 
 
 def save_map_outputs(out: Path, rows: list[dict[str, Any]], n_values: list[float], d_values: list[float],
-                     ham: TDBGContinuumHamiltonian, D_sign: float = -1.0, *, plot_figures=True) -> None:
+                     ham: TDBGContinuumHamiltonian, D_sign: float = -1.0, *, plot_figures=True,
+                     scf_rows=None) -> None:
     rows = complete_rows(rows, n_values, d_values)
-    n_layers = 4
+    n_layers = len(ham.layer_indices)
     df = pd.DataFrame(rows).sort_values(["n_index", "D_index"], kind="stable")
     for key in CORE_FIELDS:
         if key not in df:
             df[key] = np.nan
     atomic_csv(out / "nd_map.csv", df)
     atomic_json(out / "nd_map.json", df.to_dict(orient="records"))
-    save_scf_map_outputs(out, rows, n_values, d_values,
+    save_scf_map_outputs(out, rows if scf_rows is None else scf_rows, n_values, d_values,
                          ham, D_sign, plot_figures=plot_figures)
     ok = df[df["status"] == "ok"]
     metadata = {**hamiltonian_npz_metadata(ham), **displacement_metadata(D_sign)}
@@ -223,8 +237,11 @@ def save_map_outputs(out: Path, rows: list[dict[str, Any]], n_values: list[float
             **metadata,
             **axis_metadata,
             rows=ok.to_records(index=False),
-            **scalar_grids(rows, (len(n_values), len(d_values)), 4, [*metadata, *axis_metadata]),
+            **scalar_grids(rows, (len(n_values), len(d_values)), len(ham.layer_indices), [*metadata, *axis_metadata]),
         )
+    gap_rows = rows if scf_rows is None else [scf_point_record(row, ham) for row in scf_rows]
+    save_energy_gap_maps(out, gap_rows, n_values, d_values, ham, D_sign, plot_figures=plot_figures)
+    save_stoner_energy_gap_maps(out, rows, n_values, d_values, ham, D_sign, plot_figures=plot_figures)
     if not plot_figures:
         return
 
@@ -232,13 +249,17 @@ def save_map_outputs(out: Path, rows: list[dict[str, Any]], n_values: list[float
     fig_dir.mkdir(parents=True, exist_ok=True)
     plot_specs = [
         ("stoner_energy_meV_per_cell", "Full-band Stoner energy (meV/cell)"),
+        ("stoner_layer_dos_lower_block_fraction", "Stoner lower bilayer DOS / total DOS"),
         ("flavor_polarization", "Flavor polarization"),
+        *zip(POLARIZATION_FIELDS, ("Spin active-carrier polarization (0-1)",
+                                   "Valley active-carrier polarization (0-1)",
+                                   "Spin-valley active-carrier polarization (0-1)")),
         ("spin_polarization", "Absolute spin polarization"),
-        ("spin_polarization_norm", "Absolute normalized spin polarization"),
+        ("spin_polarization_norm", "Legacy spin / absolute net filling"),
         ("valley_polarization", "Absolute valley polarization"),
-        ("valley_polarization_norm", "Absolute normalized valley polarization"),
+        ("valley_polarization_norm", "Legacy valley / absolute net filling"),
         ("spin_valley_polarization", "Absolute spin-valley polarization"),
-        ("spin_valley_polarization_norm", "Absolute normalized spin-valley polarization"),
+        ("spin_valley_polarization_norm", "Legacy spin-valley / absolute net filling"),
         ("dos_mu_scf", "Full-band DOS at full-band mu"),
         ("dos_mu_full_at_full_mu", "Full-band DOS at full-band mu"),
         ("dos_mu_stoner", "Explicit-flavor DOS at Stoner mu_f"),
@@ -255,6 +276,7 @@ def save_map_outputs(out: Path, rows: list[dict[str, Any]], n_values: list[float
         ("stoner_layer_dos_dipole", "Stoner layer DOS dipole scalar"),
         ("scf_residual_meV", "SCF residual (meV)"),
         ("scf_iterations", "SCF iterations"),
+        ("scf_layer_dos_lower_block_fraction", "Lower bilayer DOS / total DOS"),
     ]
     for flavor in FLAVOR_NAMES:
         prefix = f"stoner_{flavor}"
@@ -274,25 +296,32 @@ def save_map_outputs(out: Path, rows: list[dict[str, Any]], n_values: list[float
         plot_nd_map(df, n_values, d_values, key, fig_dir / f"nd_map_{key}.png", title)
 
 
-def parse_args():
-    ap = argparse.ArgumentParser(description="Resumable n-D scan: full Hartree followed by bounded signed-flavor Stoner.")
+def parse_args() -> argparse.Namespace:
+    ap = argparse.ArgumentParser(description="Server n-D mapping: full self-consistent Hartree per point, then full-band Stoner.")
     add_hamiltonian_args(ap)
     add_density_axis_args(ap)
-    ap.add_argument("--D-values-Vnm", default=None)
+    ap.add_argument("--D-values-Vnm", type=str, default=None, help="Comma-separated explicit D values.")
     ap.add_argument("--D-min-Vnm", type=float, default=-1.2)
     ap.add_argument("--D-max-Vnm", type=float, default=1.2)
     ap.add_argument("--D-count", type=int, default=121)
-    ap.add_argument("--detail-count", type=int, default=10)
+    ap.add_argument("--detail-count", type=int, default=10, help="Total number of detailed points for the whole map.")
     ap.add_argument("--detail-n-count", type=int, default=None)
     ap.add_argument("--detail-D-count", type=int, default=None)
     add_full_scf_args(ap)
     add_stoner_args(ap)
     add_analysis_args(ap)
-    ap.add_argument("--max-workers", default="auto")
-    ap.add_argument("--resume", action="store_true", help="Restore and continue the original checkpointed --out directory.")
-    ap.add_argument("--live-plot-interval-s", type=float, default=30., help="Preview interval; 0 disables image refresh only.")
+    ap.add_argument("--max-workers", type=str, default="auto")
+    ap.add_argument("--resume", action="store_true", help="Restore and continue a checkpointed run; requires --out.")
+    ap.add_argument("--reuse-scf-run", type=str, default=None,
+                    help="Recompute Stoner from a saved full-Hartree map: two-valley diagonalization at saved U, zero Hartree iterations.")
+    ap.add_argument("--update-stoner-in-place", action="store_true",
+                    help="Back up the original saved run, then update its Stoner maps in the same directory; requires --reuse-scf-run.")
+    ap.add_argument("--restart-stoner-in-place", action="store_true",
+                    help="Archive the previous Stoner generation and recompute every point in place, preserving the original Hartree source; implies --update-stoner-in-place.")
+    ap.add_argument("--live-plot-interval-s", type=float, default=30., help="Live preview interval; 0 disables preview only.")
     add_output_args(ap)
     args = restore_resume_args(ap, ap.parse_args(), sys.argv[1:])
+    args = restore_scf_reuse_args(ap, args, sys.argv[1:])
     stoner_params_from_args(args)
     if not np.isfinite(args.live_plot_interval_s) or args.live_plot_interval_s < 0:
         raise ValueError("live plot interval must be finite and nonnegative")
@@ -301,7 +330,7 @@ def parse_args():
     return args
 
 
-def main():
+def main() -> int:
     args = parse_args()
     ham = TDBGContinuumHamiltonian(params_from_args(args, scf_valley(args)))
     n_values, scan_metadata = resolve_density_axis(args, ham.geom)
@@ -314,8 +343,10 @@ def main():
         tasks = build_tasks(n_values, d_values, args.detail_n_count or 0, args.detail_D_count or 0)
     else:
         tasks = build_tasks(n_values, d_values, args.detail_count)
-    out = create_output_dir(args, "ndmap")
+    tasks = attach_saved_scf_references(args, ham, tasks)
+    out = create_output_dir(args, "stoner_reprocess" if args.reuse_scf_run else "ndmap")
     with scan_directory_lock(out):
+        tasks = prepare_inplace_update(args, ham, tasks, out)
         return run_scan(args, ham, n_values, d_values, scan_metadata, tasks, out)
 
 
@@ -323,17 +354,27 @@ def run_scan(args, ham, n_values, d_values, scan_metadata, tasks, out):
     fingerprint = prepare_manifest(out, args, hamiltonian_metadata(ham), tasks)
     attempt = begin_attempt(out, args)
     rows_by_label, reused, rejected = load_points(out, tasks, fingerprint)
+    baseline_rows = (json.loads((Path(args.reuse_scf_run) / "nd_map.json").read_text(encoding="utf-8"))
+                     if args.update_stoner_in_place else None)
+    baseline_by_label = {row["label"]: row for row in baseline_rows} if baseline_rows is not None else {}
     pending = [task for task in tasks if task["label"] not in reused]
     workers = min(resolve_workers(args.max_workers), max(1, len(pending)))
     details_dir = out / "details"
     details_dir.mkdir(parents=True, exist_ok=True)
-    storage = estimate_storage(ham.dim, 4, args.grid_n1 * args.grid_n2, len(tasks),
+    storage = estimate_storage(ham.dim, len(ham.layer_indices), args.grid_n1 * args.grid_n2, len(tasks),
                                sum(bool(task["detail"]) for task in tasks), args.points_per_segment, args.dos_bins,
                                contour_nk=explicit_contour_kpoint_count(args))
-    estimate = (initial_runtime_estimate(ham, args, len(pending), workers) if pending else
+    estimate = (initial_runtime_estimate(ham, args, len(pending), workers,
+                                        **({"reuse_scf": True} if args.reuse_scf_run else {})) if pending else
                 {"low_s": 0., "high_s": 0., "active_workers": 0, "note": "All points restored; no SCF work remains."})
     progress = RunProgress(len(tasks), workers, estimate, resumed_completed=len(reused))
     print(f"Results: {out}", flush=True)
+    if args.reuse_scf_run:
+        print(f"Stoner replay: saved full-Hartree potentials from {args.reuse_scf_run}; "
+              "two full-valley diagonalizations per point, zero Hartree iterations.", flush=True)
+    if args.update_stoner_in_place:
+        archive = args._scf_reuse_metadata.get("previous_stoner_archive_directory", args.reuse_scf_run)
+        print(f"Updating original directory; previous results backed up at {archive}", flush=True)
     print(f"Resume: {len(reused)} verified points reused; {len(pending)} points to compute; {len(rejected)} damaged/incompatible point records ignored.", flush=True)
     print(f"Detailed points: {storage['detail_points']}; saved results budget ~{storage['saved_results_estimate_GB']:.3f} GB; full eigenvectors are computed in RAM.", flush=True)
     print(progress.start_message(), flush=True)
@@ -345,13 +386,12 @@ def run_scan(args, ham, n_values, d_values, scan_metadata, tasks, out):
         "detail_point_labels": [task["label"] for task in tasks if task["detail"]],
         "storage_estimate": storage,
         "initial_runtime_estimate": estimate,
-        "scf_config_template": {"degeneracy": 4, "kBT_meV": args.kBT_meV,
-            "max_iter": args.full_max_iter, "tol_meV": args.full_tol_meV,
-            "eps_perp": args.eps_perp, "d_layer_nm": args.d_layer_nm, "D_sign": args.D_sign,
-            "mixer": args.mixer, "anderson_beta": args.anderson_beta,
-            "anderson_memory": args.anderson_memory, "linear_fallback_alpha": args.alpha},
+        "scf_config_template": {key: value for key, value in
+                                asdict(full_scf_config_from_args(args, 0., 0.)).items()
+                                if key not in ("target_density_cm2", "D_Vnm")},
         "scf_point_parameters": {"target_density_cm2": "n_values_cm2", "D_Vnm": "D_values_Vnm"},
         "stoner_config": asdict(stoner_params_from_args(args)),
+        **({"scf_reuse": args._scf_reuse_metadata} if args.reuse_scf_run else {}),
     }
     if not args.resume or not (out / "config_used.json").exists():
         write_run_config(out, args, ham, "ndmap", {**config, "checkpoint_schema_version": 1,
@@ -373,6 +413,28 @@ def run_scan(args, ham, n_values, d_values, scan_metadata, tasks, out):
     def rows():
         return [rows_by_label[task["label"]] for task in tasks if task["label"] in rows_by_label]
 
+    def full_scf_rows():
+        if baseline_rows is None:
+            return None
+        # A transport/resource failure cannot erase previously verified Hartree
+        # data. A new physical residual failure does invalidate that saved point.
+        return [(rows_by_label[task["label"]] if rows_by_label.get(task["label"], {}).get("scf_converged") is False
+                 else baseline_by_label[task["label"]]) for task in tasks]
+
+    def map_rows():
+        if baseline_rows is None:
+            return rows()
+        pending = []
+        for task in tasks:
+            if task["label"] not in rows_by_label:
+                pending.append({**scf_point_record(baseline_by_label[task["label"]], ham),
+                    "status": "pending", "scf_status": "ok", "stoner_success": False,
+                    "stoner_dos_valid": False, "detail_saved": False})
+        return rows() + pending
+
+    def map_options():
+        return {"scf_rows": full_scf_rows()} if baseline_rows is not None else {}
+
     def summary(state):
         records = rows()
         value = {
@@ -386,6 +448,7 @@ def run_scan(args, ham, n_values, d_values, scan_metadata, tasks, out):
             "invalid_stoner_dos_points": sum(row.get("status") == "ok" and not row.get("stoner_dos_valid", True) for row in records),
             "stoner_bound_hit_points": sum(bool(row.get("stoner_filling_bound_hit", False)) for row in records),
             "stoner_bound_limited_points": sum(bool(row.get("stoner_filling_bound_limited", False)) for row in records),
+            "saved_hartree_points_reused": sum(bool(row.get("scf_reused", False)) for row in records),
             "hartree_iterations_performed": sum(int(row.get("scf_iterations_performed", row.get("scf_iterations", 0)))
                                                 for row in records),
             "runtime_s": time.time() - started, "out": str(out), "max_workers_resolved": workers,
@@ -399,9 +462,9 @@ def run_scan(args, ham, n_values, d_values, scan_metadata, tasks, out):
         return value
 
     def save_live():
-        save_map_outputs(out, rows(), n_values, d_values, ham, D_sign=args.D_sign,
-                         plot_figures=False)
-        preview.update(rows(), force=returned == 1)
+        save_map_outputs(out, map_rows(), n_values, d_values, ham, D_sign=args.D_sign,
+                         plot_figures=False, **map_options())
+        preview.update(map_rows(), force=returned == 1)
         atomic_json(out / "run_summary.json", summary("running"))
 
     def append_row(row, task):
@@ -530,8 +593,8 @@ def run_scan(args, ham, n_values, d_values, scan_metadata, tasks, out):
 
     print("Saving partial maps after process-pool failure..." if abort_reason else
           "All scan points finished; saving maps and figures...", flush=True)
-    save_map_outputs(out, rows(), n_values, d_values, ham, D_sign=args.D_sign)
-    preview.update(rows(), force=True)
+    save_map_outputs(out, map_rows(), n_values, d_values, ham, D_sign=args.D_sign, **map_options())
+    preview.update(map_rows(), force=True)
     final = summary("aborted" if abort_reason else "completed")
     final["result_directory_size_bytes"] = sum(path.stat().st_size for path in out.rglob("*") if path.is_file())
     atomic_json(out / "run_summary.json", final)

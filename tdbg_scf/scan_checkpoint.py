@@ -15,7 +15,7 @@ from .atomic_io import atomic_json, canonical_json
 from .run_storage import now_sgt
 
 CHECKPOINT_SCHEMA = 1
-OPERATIONAL_ARGS = {"out", "data_root", "max_workers", "resume", "live_plot_interval_s"}
+OPERATIONAL_ARGS = {"out", "data_root", "max_workers", "resume", "live_plot_interval_s", "restart_stoner_in_place"}
 
 
 def digest(data):

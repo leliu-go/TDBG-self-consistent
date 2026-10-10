@@ -60,10 +60,22 @@ def test_failed_hartree_skips_stoner_and_saves_diagnostics(monkeypatch, tmp_path
     (tmp_path/"scf").mkdir()
     (tmp_path/"scf"/"dos.npz").write_bytes(b"previous run")
     (tmp_path/"user_notes.txt").write_text("preserve this", encoding="utf-8")
+    import json
+    for stage in ("before_stoner", "after_stoner"):
+        folder = tmp_path / "origin_txt" / stage
+        folder.mkdir(parents=True)
+        (folder / "manifest.json").write_text(json.dumps({"format_version": 1, "status": "ok", "stage": stage}))
+        (folder / "dos.txt").write_text("old accepted spectrum")
+        (folder / "block_resolved_bands_and_contours.pdf").write_bytes(b"old accepted figure")
     row = script.run_point({"n_cm2":0., "D_Vnm":0., "label":"rejected"}, args, tmp_path)
     assert row["status"] == "failed"
     assert row["scf_converged"] is False
     assert row["scf_residual_meV"] == 50.
+    for stage in ("before_stoner", "after_stoner"):
+        folder = tmp_path / "origin_txt" / stage
+        assert json.loads((folder / "manifest.json").read_text())["status"] != "ok"
+        assert not (folder / "dos.txt").exists()
+        assert not (folder / "block_resolved_bands_and_contours.pdf").exists()
     assert (tmp_path/"scf"/"diagnostics.json").is_file()
     assert not (tmp_path/"full_band_stoner_cache.npz").exists()
     assert not (tmp_path/"scf"/"dos.npz").exists()

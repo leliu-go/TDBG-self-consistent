@@ -12,7 +12,7 @@ SCF_FIELDS = (
     "eps_perp", "d_layer_nm", "full_mu_meV", "dos_mu_scf",
     "dos_mu_full_scf", "dos_mu_full_at_full_mu",
     "P_top_bottom_cm2", "P_outer_inner_cm2", "P_dipole_cm2",
-    "D_sign", "D_positive_direction", "z_positive_direction", "electron_potential_convention",
+    "D_sign", "D_positive_direction", "z_positive_direction", "electron_potential_convention", "layer_potential_energy_convention", "D_units_convention",
 )
 
 
@@ -21,7 +21,7 @@ def scf_point_record(row: dict, ham) -> dict:
     keys = set(SCF_FIELDS)
     keys.update(key for key in row if key.startswith(("scf_", "gap_", "indirect_gap_")))
     keys.update(f"{prefix}{layer}_meV" if prefix == "U" else f"n{layer}_cm2"
-                for layer in range(1, 4 + 1) for prefix in ("U", "n"))
+                for layer in range(1, len(ham.layer_indices) + 1) for prefix in ("U", "n"))
     record = {key: value for key, value in row.items() if key in keys}
     record.update(hamiltonian_metadata(ham))
     record.update(displacement_metadata(row.get("D_sign", -1)))

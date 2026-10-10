@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import numpy as np
+from .active_polarization import active_result_fields
 
 from ..density import dos_at_mu_gaussian, layer_weights_from_evecs, validate_gaussian_sigma
 from ..density import find_mu_for_density, full_layer_density
@@ -293,6 +294,7 @@ def layer_polarizations(n_layer_cm2: np.ndarray) -> dict[str, float]:
 def stoner_result_to_dict(result, tables: list[FlavorBandTable]) -> dict:
     mu_f = stoner_mu_by_flavor(result, tables)
     return {
+        **active_result_fields(result),
         "nu_total": float(result.nu_total),
         "nu_f": result.nu_f.tolist(),
         "flavor_bounds_nu": result.flavor_bounds_nu,
@@ -304,6 +306,7 @@ def stoner_result_to_dict(result, tables: list[FlavorBandTable]) -> dict:
         "energy_meV_per_cell": float(result.energy_meV_per_cell),
         "success": bool(result.success),
         "seed_name": str(result.seed_name),
+        "minimum_validation": getattr(result, "minimum_validation", None),
         "spin_polarization": result.spin_polarization,
         "spin_polarization_norm": result.spin_polarization_norm,
         "valley_polarization": result.valley_polarization,
@@ -317,6 +320,13 @@ def stoner_result_to_dict(result, tables: list[FlavorBandTable]) -> dict:
                 "energy_meV_per_cell": float(item["energy_meV_per_cell"]),
                 "success": bool(item["success"]),
                 "nu_f": np.asarray(item["nu_f"], dtype=float).tolist(),
+                **{key: item[key] for key in (
+                    "stationarity", "local_stability", "message",
+                    "optimizer_iterations", "refinement_iterations",
+                    "total_iterations", "energy_decrease_meV",
+                    "de_seed", "de_converged", "de_function_evaluations",
+                    "de_message", "stage", "refinement_budget_exhausted",
+                ) if key in item},
             }
             for item in result.local_minima
         ],

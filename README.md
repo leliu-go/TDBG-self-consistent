@@ -15,6 +15,8 @@ The finite-Q susceptibility code is currently experimental. It is kept in the
 repository for development, but it should not be used as a final physical result
 until the finite-Q formulation and diagnostics have been rechecked.
 
+[Current changes and preserved parameters](docs/tdbg_parity_update.md).
+
 Windows deployment and full Hartree commands: [server_full_hartree_stoner_cli.md](server_full_hartree_stoner_cli.md). Numerical audit: [docs/full_hartree_numerical_audit.md](docs/full_hartree_numerical_audit.md).
 
 The Stoner search uses signed per-flavor fillings with default bounds
@@ -52,7 +54,10 @@ for graphene moire systems, starting from the Bistritzer-MacDonald type
 continuum model for twisted bilayers and using the TDBG AB-BA/ABBA conventions
 discussed in the TDBG literature [1-3].
 
-The implemented structure is ABBA, not ABAB. The layer order used everywhere is
+The legacy model identifier and result-folder prefix remain ABBA. With
+AB = B_upper-A_lower and BA = A_upper-B_lower, the actual strong dimers below
+are BA-AB from top to bottom. This clarifies the label; the Hamiltonian matrix
+and every physical parameter are unchanged. The layer order used everywhere is
 
 ```text
 L1, L2, L3, L4 = top to bottom.
@@ -98,45 +103,19 @@ They are always reported in this zero-average gauge.
 
 ### Displacement-field convention
 
-The default command-line convention is chosen to match the uploaded
-`ABBATDBG2.py` convention:
+The layer coordinate is positive from top to bottom; electron potential energy
+is U=-e*phi. Input D is external displacement divided by epsilon0, in V/nm.
+Before screening, the potential step is
 
-$$
-D_{\mathrm{sign}}=-1 .
-$$
+```text
+U[l+1]-U[l] = D_sign * 1000 * d_layer_nm * D / eps_perp  (meV).
+```
 
-The code distinguishes the user input field from the Gauss-law field:
-
-$$
-D_{\mathrm{gate}}
-=D_{\mathrm{sign}}D_{\mathrm{input}}
-=\frac{e(n_b-n_t)}{2\varepsilon_0}.
-$$
-
-The linear initial/reference layer potential uses the corresponding uploaded
-profile field
-
-$$
-D_{\mathrm{profile}}=-D_{\mathrm{sign}}D_{\mathrm{input}},
-\qquad
-Z_k=\frac{330}{4}D_{\mathrm{profile}}\ \mathrm{meV},
-$$
-
-$$
-U=\left(\frac{3}{2},\frac{1}{2},-\frac{1}{2},-\frac{3}{2}\right)Z_k .
-$$
-
-With the default `D_sign=-1`, a positive input `D` therefore makes the top
-layer higher in electron energy than the bottom layer before screening:
-
-$$
-U_1>U_2>U_3>U_4 .
-$$
-
-If `D_sign=+1` is used, the code instead follows the direct gate convention
-where `D_input` itself satisfies the Gauss-law expression above.
-
-For comparison across runs, always record `D_sign`.
+The original D_sign=-1 is retained: D>0 points bottom to top and U1>U2>U3>U4.
+D_sign=+1 makes positive D point top to bottom. Potentials have zero mean.
+Actual d_layer_nm, eps_perp and D_sign are saved in config_used.json.
+The standalone Hartree entry retains eps_perp=4; Stoner/Windows retains
+its original eps_perp=3. Pass an explicit value when comparing these entries.
 
 ## Self-consistent Hartree calculation
 
@@ -235,8 +214,9 @@ For each `(n,D)` point:
 1. Run full continuum self-consistent Hartree to obtain U_scf.
 2. Diagonalize the full continuum Hamiltonian at U_scf in K and K'.
 3. Build neutrality-referenced full-band filling tables for K and K'.
-4. Restrict fillings to the doped carrier sector.
-5. Minimize the four-flavor Stoner energy at fixed total filling nu_total.
+4. Intersect signed flavor bounds [-2,2] with full-spectrum capacity.
+5. Run two independent 3D DE searches, occupation-node refinement, common-mu
+   and stability checks; compare accepted energies at fixed nu_total.
 6. Save flavor fillings, polarizations, DOS, layer DOS, band structure, and contours.
 ```
 
@@ -281,9 +261,13 @@ U_0=7.9\times10^4\ \mathrm{meV\,A^2},
 J_H=2.4\times10^4\ \mathrm{meV\,A^2}.
 $$
 
-The solver tries paramagnetic, spin-polarized, valley-polarized,
-single-flavor, and random initial states, and keeps the lowest-energy local
-minimum.
+The solver uses two independent 3D differential-evolution runs with seeds
+seed and seed+1, followed by exact occupation-node refinement. Feasible
+piecewise-quadratic segments include their endpoints. States must pass common
+Fermi-level stationarity and local stability checks. Rejected lower-energy
+candidates are retained in diagnostics. This stochastic search does not certify
+a mathematical global minimum. Legacy random-seed counts are accepted for old
+configurations but ignored by DE.
 
 Single-point full-band Stoner run:
 
@@ -346,7 +330,15 @@ P_{\mathrm{spin-valley}}
 -(\nu_{K'\uparrow}+\nu_{K\downarrow})\right|.
 $$
 
-Normalized polarizations divide by `|nu_total|`.
+Legacy *_polarization_norm columns divide by |nu_total| and may exceed one
+for compensated states. Default active-band maps instead use
+*_polarization_active_norm, with P_a=abs(sum_f q_a,f*(e_f-h_f))/sum_f(e_f+h_f).
+Here e_f and h_f count central conduction electrons and central valence vacancies
+after filling the full spectrum; hole labels are those of the missing electrons.
+The generators in flavor order are (+,+,-,-), (+,-,+,-), (+,-,-,+) for spin,
+valley and spin-valley. Values lie in [0,1]; no active carriers gives NaN.
+Remote filling is recorded separately. This observable selection does not
+project the Hamiltonian or the Stoner kinetic energy.
 
 Layer-density polarizations use `L1,L2,L3,L4 = top to bottom`:
 
@@ -363,7 +355,10 @@ P_{\mathrm{dipole}}
 =1.5\,n_1+0.5\,n_2-0.5\,n_3-1.5\,n_4 .
 $$
 
-The same layer combinations are also used for layer-resolved DOS.
+The same combinations are used for layer DOS. Additionally,
+scf_layer_dos_lower_block_fraction and stoner_layer_dos_lower_block_fraction
+are (DOS_L3+DOS_L4)/DOS_all: one denotes the lower bilayer, zero the upper.
+Per-state block weights sum both sublattices and all plane waves on L3-L4.
 
 ## Outputs
 
@@ -388,14 +383,26 @@ potentials, band and DOS figures for detail points. This stage is retained if
 the subsequent Stoner optimizer fails. It reuses the same calculation.
 
 Stoner DOS and band figures require a physically consistent common mean-field
-Fermi level. A constrained carrier-sector optimum can be valid while no such
+Fermi level. A constrained filling-window optimum can be valid while no such
 Fermi level exists; these spectral fields are then NaN, not zero, with the
 reason recorded. `stoner_dos_valid` distinguishes this case. See the numerical
 audit for the finite-grid occupation and kinetic-energy conventions.
 
-For full-band Stoner detail points, `full_band_stoner_cache.npz` stores full
-bands, eigenvectors, `U_scf`, Stoner flavor fillings, flavor chemical
-potentials, layer densities, and layer DOS data.
+For detail points, full_band_stoner_cache.npz stores compressed full spectra,
+compact lower-bilayer probabilities, U_scf, flavor fillings, chemical potentials,
+layer densities and layer DOS. Complete eigenvectors are used in RAM and are
+not saved by this workflow. Details export Origin TXT with Long Name/Units/
+Comments rows and block-colored PDF/PNG plots for both stages.
+
+Hartree gaps at nu=0,+/-4 and post-Stoner gaps at integer reference fillings
+-6 through +6 have independent numeric maps. Missing/invalid values are NaN;
+a validated overlap gives zero gap. Gaps use the fixed Hamiltonian at each
+point's accepted Hartree potential and exchange shifts.
+
+Use --reuse-scf-run for a fresh Stoner-only pass on saved Hartree potentials,
+--update-stoner-in-place to archive and update the same folder, and
+--restart-stoner-in-place for another generation. --resume --out continues an
+interrupted generation. See the Windows deployment document.
 
 ## Finite-Q susceptibility status
 

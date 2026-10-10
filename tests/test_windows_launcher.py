@@ -81,3 +81,21 @@ def test_actual_powershell_run_and_resume_keep_completed_checkpoint(tmp_path):
     assert second.returncode == 0, second.stdout + second.stderr
     assert "1 verified points reused; 0 points to compute" in second.stdout
     assert point.read_bytes() == contents and point.stat().st_mtime_ns == timestamp
+
+
+def test_windows_launcher_forwards_de_controls():
+    argv=preview('-StonerDeMaxIter','17','-StonerDePopsize','7','-StonerDeTol','1e-7',
+                 '-StonerMaxIter','23','-StonerSeed','11')['python_arguments']
+    assert '--stoner-de-max-iter=17' in argv and '--stoner-de-popsize=7' in argv
+    assert '--stoner-max-iter=23' in argv and '--stoner-seed=11' in argv
+
+
+def test_windows_replay_does_not_inject_default_physics(tmp_path):
+    (tmp_path/'config_used.json').write_text(json.dumps({'args':{
+        'theta_deg':1.15,'eps_perp':7.,'Z':9.,'cutoff':3,'grid_n1':24,'grid_n2':30}}))
+    result=preview('-ReuseScfRun',str(tmp_path),'-RestartStonerInPlace','-Workers','2')
+    argv=result['python_arguments']
+    assert argv[argv.index('--reuse-scf-run')+1] == str(tmp_path)
+    assert '--restart-stoner-in-place' in argv
+    assert not any(arg.startswith(('--theta-deg','--eps-perp','--Z=')) for arg in argv)
+    assert result['resource_estimates']['hamiltonian_dimension']==392

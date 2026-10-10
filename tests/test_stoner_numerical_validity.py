@@ -18,12 +18,15 @@ def quadratic_tables():
     return [FlavorBandTable(nu, c*nu, .5*c*nu**2, 0., 1.) for c in (1., 4., 1., 4.)]
 
 
-def test_iteration_limit_does_not_validate_an_unoptimized_seed():
+def test_budget_limit_does_not_validate_a_nonstationary_candidate(monkeypatch):
+    monkeypatch.setattr('scipy.optimize.differential_evolution', lambda *a, **k:
+        SimpleNamespace(x=np.array([.25, 1./3., .5]), success=False,
+                        message='generation limit', nit=1, nfev=64))
     tables = quadratic_tables()
     result = solve_stoner_fixed_nu(1., tables,
-        StonerParams(u0_meV_A2=0., max_iter=1, n_random_seeds=0), 1.)
+        StonerParams(u0_meV_A2=0., max_iter=0, de_max_iter=1), 1.)
     # The exact constrained minimum is (.4,.1,.4,.1), E=.2.
-    # All one-step optimizer attempts stop before reaching it.
+    # A candidate with no refinement budget must still pass stationarity.
     assert result.energy_meV_per_cell > .2 + 1e-3
     assert not result.success
     assert all(not r['success'] for r in result.local_minima)
@@ -31,7 +34,7 @@ def test_iteration_limit_does_not_validate_an_unoptimized_seed():
 
 def test_accepted_optimizer_result_solves_an_independent_quadratic_problem():
     result = solve_stoner_fixed_nu(1., quadratic_tables(),
-        StonerParams(u0_meV_A2=0., n_random_seeds=0), 1.)
+        StonerParams(u0_meV_A2=0.), 1.)
     assert result.success
     np.testing.assert_allclose(result.nu_f, [.4,.1,.4,.1], atol=2e-3, rtol=0)
     assert result.energy_meV_per_cell == pytest.approx(.2, abs=2e-6)
@@ -39,10 +42,10 @@ def test_accepted_optimizer_result_solves_an_independent_quadratic_problem():
 
 @pytest.mark.parametrize('bad', [np.array([.1]*4), np.array([np.nan,.2,.3,.5]), np.array([-1.,1.,.5,.5])])
 def test_optimizer_success_flag_does_not_accept_an_invalid_raw_candidate(monkeypatch, bad):
-    monkeypatch.setattr('scipy.optimize.minimize', lambda *a, **k:
+    monkeypatch.setattr('scipy.optimize.differential_evolution', lambda *a, **k:
         SimpleNamespace(x=bad.copy(), success=True, message='fake success'))
     result = solve_stoner_fixed_nu(1., quadratic_tables(),
-        StonerParams(u0_meV_A2=0., n_random_seeds=0), 1.)
+        StonerParams(u0_meV_A2=0.), 1.)
     assert not result.success
     assert np.isfinite(result.energy_meV_per_cell)
 
@@ -57,11 +60,11 @@ def test_signed_table_mu_matches_the_kinetic_slope_or_gap_interval(nu, expected)
         assert table.mu_of_nu(nu) == pytest.approx(derivative)
 
 
-def test_signed_tables_retain_the_neutral_gap_mu_interval():
+def test_search_bounds_do_not_change_the_neutral_gap_mu_interval():
+    from tdbg_scf.stoner.dos import flavor_filling_bounds
     table = build_neutrality_referenced_band_table(np.array([[-10.,10.]]), np.ones(1), 1.)
-    for nu in (-1.,0.,1.):
-        restricted = [table]*4
-        assert restricted[0].mu_of_nu(0.) == pytest.approx(0.)
+    assert flavor_filling_bounds([table]*4, -.5,.5) == [(-.5,.5)]*4
+    assert table.mu_of_nu(0.) == pytest.approx(0.)
 
 
 def test_partial_state_dos_uses_its_energy_instead_of_a_spurious_gap_mu():

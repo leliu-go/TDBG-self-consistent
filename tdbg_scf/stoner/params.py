@@ -10,16 +10,19 @@ class StonerParams:
     u0_meV_A2: float
     JH_meV_A2: float = 0.0
     temperature_K: float = 0.0
-    max_iter: int = 200
+    max_iter: int = 200  # Exact occupation-node refinement steps per DE run.
     tol_energy_meV: float = 1e-8
-    n_random_seeds: int = 20
+    de_max_iter: int = 150
+    de_popsize: int = 12
+    de_tol: float = 1e-8
+    n_random_seeds: int = 20  # Legacy configuration input; ignored by two-seed DE.
     seed: int = 0
     flavor_nu_min: float = -2.0
     flavor_nu_max: float = 2.0
 
     def __post_init__(self) -> None:
         if not np.isfinite([self.u0_meV_A2, self.JH_meV_A2,
-                            self.temperature_K, self.tol_energy_meV,
+                            self.temperature_K, self.tol_energy_meV, self.de_tol,
                             self.flavor_nu_min, self.flavor_nu_max]).all():
             raise ValueError("Stoner parameters must be finite")
         if self.flavor_nu_min >= self.flavor_nu_max:
@@ -28,8 +31,12 @@ class StonerParams:
             raise ValueError("Stoner currently supports temperature_K=0 only; finite-temperature free energy is not implemented")
         if self.tol_energy_meV <= 0:
             raise ValueError("tol_energy_meV must be positive")
-        for name, value, lower in (("max_iter", self.max_iter, 1),
-                                   ("n_random_seeds", self.n_random_seeds, 0),
-                                   ("seed", self.seed, 0)):
+        if self.de_tol <= 0:
+            raise ValueError("de_tol must be positive")
+        for name, value, lower in (("max_iter", self.max_iter, 0),
+                                   ("de_max_iter", self.de_max_iter, 1),
+                                   ("de_popsize", self.de_popsize, 1),
+                                   ("seed", self.seed, 0),
+                                   ("n_random_seeds", self.n_random_seeds, 0)):
             if isinstance(value, bool) or not isinstance(value, (int, np.integer)) or value < lower:
                 raise ValueError(f"{name} must be an integer >= {lower}")

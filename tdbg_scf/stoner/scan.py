@@ -9,6 +9,8 @@ import numpy as np
 from ..continuum import TDBGParameters, TDBGContinuumHamiltonian
 from ..correlated_io import ensure_output_dir, write_json
 from ..filling import filling_to_density_cm2, moire_cell_area_A2_from_weights
+from ..band_gaps import four_flavor_band_gaps, stoner_integer_band_gaps
+from .active_polarization import full_spectrum_active_occupations
 from ..lattice import make_uniform_mbz_grid
 from ..scf_checks import require_converged_scf, scf_convergence_diagnostics
 from ..solver_full import FullSCFConfig, FullSCFSolver
@@ -71,8 +73,13 @@ def run_stoner_scan(config) -> list:
                     raise RuntimeError(f"Stoner has no physical common Fermi level at nu={nu}, D={D}: {level['reason']}")
                 result.mu_f_meV = np.asarray(level["mu_f_meV"], dtype=float)
                 result.mean_field_fermi_level = level
+                result.active_occupation_record = full_spectrum_active_occupations(
+                    state.evals, evals_Kp, weights, A_M_A2, result.nu_f)
                 results.append(result)
-                records.append({**stoner_result_to_dict(result, tables), "D_Vnm": float(D),
+                records.append({**stoner_result_to_dict(result, tables),
+                                **four_flavor_band_gaps(state.evals, evals_Kp),
+                                **stoner_integer_band_gaps(state.evals, evals_Kp, level["self_energy_f_meV"]),
+                                "D_Vnm": float(D),
                                 "target_density_cm2": target_cm2, "A_M_A2": A_M_A2,
                                 "scf": {**diagnostics, "source": "full", "band_count": ham_K.dim,
                                         "iterations": state.iterations, "mu_meV": state.mu_meV,
